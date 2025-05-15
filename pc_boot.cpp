@@ -6,6 +6,8 @@
 #include <iostream>//директива препроцесора
 #include <fstream>
 #include "serial.h"
+#include <unistd.h> // для Unix систем
+#include <chrono>
 //#include "aes.hpp"
 
 using namespace std;
@@ -121,15 +123,25 @@ serial::Serial s;
 int main (int argc, char *argv[]) {
     int r;
 
-    if (argc != 3) {
+    if (argc != 4) {
         cout << "Wrong number of parameters. 4 parameters are required: " << endl;
         cout << "1. name tty" << endl;
-        cout << "2. Path to cfg bootloader (<<.bin>> file)." << endl;
-        cout << "3. Path to return file (<<.bin>> file)." << endl;
+        cout << "2. Path to bin file (<<.bin>> file)." << endl;
+        cout << "3. offset." << endl;
         cout << endl;
         return EINVAL;
     }
 
+    uint32_t offset;
+    r = sscanf(argv[3], "%x", &offset);
+
+    if (r==0){
+        return EINVAL;
+    }
+
+    if (offset < (0x08000000 + 4096)){
+        return EINVAL;
+    }
 
     s.setPort(argv[1]);
     s.setBaudrate(115200);
@@ -142,6 +154,22 @@ int main (int argc, char *argv[]) {
     }
 
     printf("open tty ok\r\n");
+
+    const uint8_t s_Open[3] = {"O\r"};
+    uint32_t send_byte = s.write(s_Open, sizeof(s_Open) - 1);
+
+   // printf("send byte %d\r\n", send_byte);
+
+    uint8_t buf_in_serial_data[2048] = {0};
+    //    cur_time = std::chrono::system_clock::now();
+    while (1){
+        uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
+        if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
+            break;
+        }
+    }
+    printf("can bus open \r\n");
+
    // struct AES_ctx ctx;
     //AES_init_ctx(&ctx, key);
 
@@ -149,11 +177,9 @@ int main (int argc, char *argv[]) {
     uint32_t file_size = 0;
 
     uint8_t *in_flash = nullptr;
-    uint8_t *out_flash = nullptr;
     in_flash = new uint8_t[max_size];
-    out_flash = new uint8_t[max_size];    
     memset(in_flash, 0xFF, max_size);
-    memset(out_flash, 0xFF, max_size);
+
     /// Копируем bootloader.bin.
     r = read_bin_file(argv[2], in_flash, &file_size);
     if (r){
@@ -161,13 +187,49 @@ int main (int argc, char *argv[]) {
         return EINVAL;
     }
     printf("filesize = %d\r\n", file_size);
+    offset = offset - 0x08000000;
 
+    for (uint32_t i=0; i<256; ){
+        uint32_t *l_byte, *h_byte;
+        l_byte = (uint32_t *)&in_flash[i];
+        h_byte = l_byte + 4;
+
+        char out_buf[64] = {0};
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", offset+i, *h_byte, *l_byte);
+        uint32_t size = strlen(out_buf);      
+        send_byte = s.write(s_Open, size - 1);       
+        printf("send = %d\r\n", size);   
+
+        auto cur_time = std::chrono::system_clock::now();
+        auto t_stop = cur_time + std::chrono::milliseconds(1000);
+        auto end_time = t_stop;
+        int rv = ETIMEDOUT;
+        while (cur_time < end_time){ 
+            cur_time = std::chrono::system_clock::now();            
+            uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
+            if (count_byte_packet != 0){
+                printf("rcv = %d\r\n", count_byte_packet); 
+            }
+            
+            if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
+                printf("rcv ack \r\n");       
+                rv = 0;
+                break;
+            }
+        }
+        if (rv == 0){
+            i+=8;
+        }
+
+    }
+
+/*
     if (file_size & 0xff){
         file_size &= ~0xff;
         file_size += 256;
     }
     printf("aligned 256 = %d\r\n", file_size);    
-    memcpy(out_flash, in_flash, 512);
+
 
     uint32_t cpy_size = 512;
     for (;cpy_size < file_size; cpy_size += 16){
@@ -192,6 +254,7 @@ int main (int argc, char *argv[]) {
     } else {
         cout << "The bin file was not created!" << endl;
     }
+    */
 /*
     uint16_t crc16;
 
