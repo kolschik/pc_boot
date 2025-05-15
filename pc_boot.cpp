@@ -192,7 +192,7 @@ int main (int argc, char *argv[]) {
     for (uint32_t i=0; i<256; ){
         uint32_t *l_byte, *h_byte;
         l_byte = (uint32_t *)&in_flash[i];
-        h_byte = l_byte + 4;
+        h_byte = l_byte + 1;
 
         boot_id_t id = {0};
         id.com.address = offset+i;
