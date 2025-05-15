@@ -8,7 +8,7 @@
 #include "serial.h"
 #include <unistd.h> // для Unix систем
 #include <chrono>
-//#include "aes.hpp"
+#include "api.h"
 
 using namespace std;
 /*
@@ -194,9 +194,13 @@ int main (int argc, char *argv[]) {
         l_byte = (uint32_t *)&in_flash[i];
         h_byte = l_byte + 4;
 
+        boot_id_t id = {0};
+        id.com.address = offset+i;
+        id.com.command = boot_code_write;
+
         char out_buf[64] = {0};
         //T 000050b8 8 0800 6c5d 0800 6c5d
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", offset+i, *h_byte, *l_byte);
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, *h_byte, *l_byte);
         uint32_t size = strlen(out_buf) ;      
         send_byte = s.write((uint8_t*)out_buf, size);       
         printf("send = %s\r\n", out_buf);
