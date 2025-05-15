@@ -195,10 +195,11 @@ int main (int argc, char *argv[]) {
         h_byte = l_byte + 4;
 
         char out_buf[64] = {0};
+        //T 000050b8 8 0800 6c5d 0800 6c5d
         snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", offset+i, *h_byte, *l_byte);
-        uint32_t size = strlen(out_buf);      
-        send_byte = s.write(s_Open, size - 1);       
-        printf("send = %d\r\n", size);   
+        uint32_t size = strlen(out_buf) ;      
+        send_byte = s.write((uint8_t*)out_buf, size);       
+        printf("send = %s\r\n", out_buf);
 
         auto cur_time = std::chrono::system_clock::now();
         auto t_stop = cur_time + std::chrono::milliseconds(1000);
@@ -207,10 +208,7 @@ int main (int argc, char *argv[]) {
         while (cur_time < end_time){ 
             cur_time = std::chrono::system_clock::now();            
             uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
-            if (count_byte_packet != 0){
-                printf("rcv = %d\r\n", count_byte_packet); 
-            }
-            
+
             if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
                 printf("rcv ack \r\n");       
                 rv = 0;
