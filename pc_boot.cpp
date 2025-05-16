@@ -11,6 +11,9 @@
 #include "api.h"
 
 using namespace std;
+
+int wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout);
+int send_command(const char *s, uint32_t size, uint32_t timeout = 100);
 /*
 uint8_t *malloc_array_flash (name_mc name) {
     uint32_t mc_support_count = sizeof(mc_base_name)/sizeof(mc_base_name[0]);
@@ -132,6 +135,8 @@ int main (int argc, char *argv[]) {
         return EINVAL;
     }
 
+    uint32_t page_size = 1024, flash_size = 16384;
+
     uint32_t offset;
     r = sscanf(argv[3], "%x", &offset);
 
@@ -155,21 +160,71 @@ int main (int argc, char *argv[]) {
 
     printf("open tty ok\r\n");
 
-    const uint8_t s_Open[3] = {"O\r"};
-    uint32_t send_byte = s.write(s_Open, sizeof(s_Open) - 1);
+    const char s_Open[3] = {"O\r"};
 
-   // printf("send byte %d\r\n", send_byte);
-
-    uint8_t buf_in_serial_data[2048] = {0};
-    //    cur_time = std::chrono::system_clock::now();
-    while (1){
-        uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
-        if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
-            break;
-        }
+    if (send_command(s_Open, sizeof(s_Open) - 1)) {
+        printf("no open can pipe \r\n");
+        return EINVAL;
     }
+
     printf("can bus open \r\n");
 
+    // detect
+    while (1){
+        boot_id_t id = {0};
+        id.com.address = 0;
+        id.com.command = boot_code_name;
+
+        char out_buf[64] = {0};
+        uint32_t dummy = 0;
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
+        uint32_t size = strlen(out_buf);      
+
+        if (send_command(out_buf, size)) {
+            printf("command detect not accept \r\n");
+            return EINVAL;
+        }
+        uint8_t answer[8];
+        boot_id_t id_rcv = {0};        
+        if ((r = wait_answer(&id_rcv.raw, answer, 100)) < 0){
+            continue;
+        }
+        if ((id_rcv.raw != id.raw) || (r != 3)){
+            continue;
+        }
+        printf("device detected = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
+        break;
+    }
+
+    // unlock
+    if (1){
+        boot_id_t id = {0};
+        id.com.address = 0;
+        id.com.command = boot_code_unlock;
+
+        char out_buf[64] = {0};
+        uint32_t dummy = 0;
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
+        uint32_t size = strlen(out_buf);      
+
+        if (send_command(out_buf, size)) {
+            printf("command unlock not accept \r\n");
+            return EINVAL;
+        }
+        uint8_t answer[8];
+        boot_id_t id_rcv = {0};        
+        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
+            printf("command unlock timeout \r\n");
+            return EINVAL;
+        }
+        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
+            printf("unlock = %x, pld = %x \r\n", id.raw, answer[0]);
+            return EINVAL;
+        }
+        printf("unlock succeced \r\n"); 
+    }
+
+   
    // struct AES_ctx ctx;
     //AES_init_ctx(&ctx, key);
 
@@ -189,7 +244,54 @@ int main (int argc, char *argv[]) {
     printf("filesize = %d\r\n", file_size);
     offset = offset - 0x08000000;
 
-    for (uint32_t i=0; i<256; ){
+    uint32_t page_count = (flash_size - offset) / page_size;
+    printf("page erase count = %d \r\n", page_count);
+    uint32_t error_count = 0;
+
+    for (uint32_t i=0; i<page_count; ){
+        if (error_count >= 5){
+            printf("very big error \r\n");
+            return EINVAL;
+        }
+        boot_id_t id = {0};
+        id.com.address = offset+i*page_size;
+        id.com.command = boot_code_erase;
+
+        char out_buf[64] = {0};
+        //T 000050b8 8 0800 6c5d 0800 6c5d
+        uint32_t dummy = 0;
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
+        uint32_t size = strlen(out_buf);      
+
+        if (send_command(out_buf, size)) {
+            printf("command not accept \r\n");
+            return EINVAL;
+        }
+        uint8_t answer[8]; 
+
+        boot_id_t id_rcv = {0};
+        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
+            error_count++;
+            continue;
+        }
+        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
+            printf("erase = %x, pld = %x \r\n", id.raw, answer[0]);
+            error_count++;
+            continue;
+        }
+        printf(".");
+        fflush(stdout);
+        i+=1;
+    }
+    printf("\r\n"); 
+    printf("erase succeced \r\n"); 
+
+    error_count = 0;
+    for (uint32_t i=0; i<file_size; ){
+        if (error_count >= 5){
+            printf("very big error \r\n");
+            return EINVAL;
+        }
         uint32_t *l_byte, *h_byte;
         l_byte = (uint32_t *)&in_flash[i];
         h_byte = l_byte + 1;
@@ -201,30 +303,107 @@ int main (int argc, char *argv[]) {
         char out_buf[64] = {0};
         //T 000050b8 8 0800 6c5d 0800 6c5d
         snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, *h_byte, *l_byte);
-        uint32_t size = strlen(out_buf) ;      
-        send_byte = s.write((uint8_t*)out_buf, size);       
-        printf("send = %s\r\n", out_buf);
+        uint32_t size = strlen(out_buf);      
 
-        auto cur_time = std::chrono::system_clock::now();
-        auto t_stop = cur_time + std::chrono::milliseconds(1000);
-        auto end_time = t_stop;
-        int rv = ETIMEDOUT;
-        while (cur_time < end_time){ 
-            cur_time = std::chrono::system_clock::now();            
-            uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
-
-            if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
-                printf("rcv ack \r\n");       
-                rv = 0;
-                break;
-            }
+        if (send_command(out_buf, size)) {
+            printf("command not accept \r\n");
+            return EINVAL;
         }
-        if (rv == 0){
-            i+=8;
-        }
+        uint8_t answer[8]; 
 
+        boot_id_t id_rcv = {0};
+        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
+            error_count++;
+            continue;
+        }
+        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
+            printf("rcv = %x, pld = %x \r\n", id.raw, answer[0]);
+            error_count++;
+            continue;
+        }
+        error_count = 0;
+      
+        i+=8;
+        printf(".");
+        fflush(stdout);  
+    }
+    printf("\r\nboot succeced \r\n");     
+    return 0;
+}
+
+
+
+int send_command(const char *str, uint32_t size, uint32_t timeout){
+    uint32_t send_byte = s.write((uint8_t *)str, size);
+
+    if (send_byte != size){
+        return EFAULT;
     }
 
+    uint8_t buf_in_serial_data[2048] = {0};
+
+    auto cur_time = std::chrono::system_clock::now();
+    auto t_stop = cur_time + std::chrono::milliseconds(timeout);
+    auto end_time = t_stop;
+    int rv = ETIMEDOUT;
+    while (cur_time < end_time){ 
+        cur_time = std::chrono::system_clock::now();            
+        uint32_t count_byte_packet = s.read(buf_in_serial_data, 2048);
+
+        if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
+            return 0;
+        }
+    }
+    return ETIMEDOUT;
+}
+
+int wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
+    uint8_t buf_in_serial_data[256] = {0};
+
+    auto cur_time = std::chrono::system_clock::now();
+    auto t_stop = cur_time + std::chrono::milliseconds(timeout);
+    auto end_time = t_stop;
+    int rv = -ETIMEDOUT;
+    uint32_t count_byte_packet = 0;
+    while (cur_time < end_time){ 
+        cur_time = std::chrono::system_clock::now();            
+        count_byte_packet = s.read(buf_in_serial_data, 256);
+
+        if (count_byte_packet == 0){
+            continue;
+        }
+
+        if (*buf_in_serial_data == 'T'){
+            rv = 0;
+            break;
+        }
+    }
+
+    if ((rv == 0) && (*buf_in_serial_data == 'T') && (count_byte_packet >= 10)){
+        char char_id[9] = {0};
+        memcpy(char_id, &buf_in_serial_data[1], 8);
+        sscanf(char_id, "%x", id);
+
+        uint8_t num = buf_in_serial_data[9];
+        if ((num < '1') || (num > '9')){
+            return -EINVAL;   
+        }
+        num = num - '0';
+
+        uint8_t *buf_p = &buf_in_serial_data[10];
+        for (int i=num-1; i>=0; i--){
+            memcpy(char_id, buf_p, 2); 
+            buf_p += 2;
+            char_id[2] = 0;
+            uint32_t buf;
+            sscanf(char_id, "%x", &buf);
+            array[i] = buf & 0xff;
+        }  
+        return num;
+    }
+
+    return rv;
+}
 /*
     if (file_size & 0xff){
         file_size &= ~0xff;
@@ -313,8 +492,6 @@ int main (int argc, char *argv[]) {
         cout << "The bin file was not created!" << endl;
     }
 */
-    return 0;
-}
 
 
 /*
