@@ -12,7 +12,8 @@ include_directories(
 
 add_executable(pc_boot 
 #    "tiny-aes-c/aes.c"
-    "pc_boot.cpp"
+    pc_boot.cpp
+    uart_api.cpp
     serial/src/serial.cc
     serial/src/impl/unix.cc
 )
