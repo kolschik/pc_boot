@@ -7,8 +7,6 @@
 #include <fstream>
 #include "serial.h"
 #include <unistd.h> // для Unix систем
-#include <chrono>
-#include "api.h"
 
 #include "uart_api.h"
 #include "can_api.h"
@@ -160,6 +158,8 @@ int main (int argc, char *argv[]) {
         printf("verify error \r\n");
     }
     printf("\r\nverify completed \r\n");
+
+    api->start();
     return 0;
 }
 

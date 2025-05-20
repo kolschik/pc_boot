@@ -9,6 +9,25 @@ int uart_api::open(){
 }
 
 int uart_api::start(){
+    char out_buf[64] = {0};
+    uint32_t dummy = 0;
+    snprintf(out_buf, sizeof(out_buf), "S0000000000000000\r");
+    uint32_t size = strlen(out_buf);      
+
+    if (send_command(out_buf, size)) {
+        printf("command start not accept \r\n");
+        return EINVAL;
+    }
+ 
+    uint8_t answer[8];    
+    if (wait_answer(answer, 1000) < 0){
+        return EINVAL;
+    }
+    if ((answer[0] != 0)){
+        printf("start not accept\r\n");
+        return EINVAL;
+    }
+
     return 0;
 }
 
