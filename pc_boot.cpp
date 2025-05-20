@@ -11,6 +11,7 @@
 #include "api.h"
 
 #include "uart_api.h"
+#include "can_api.h"
 
 using namespace std;
 
@@ -108,7 +109,7 @@ int main (int argc, char *argv[]) {
     if (strcmp(argv[1], "uart") == 0){
         api = new uart_api(ser);
     } else if (strcmp(argv[1], "can") == 0) {
-        api = new uart_api(ser);
+        api = new can_api(ser);
     } else {
         printf("not valid protocol %s\r\n", argv[1]);
         return EINVAL;
