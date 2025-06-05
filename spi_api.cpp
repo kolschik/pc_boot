@@ -345,4 +345,8 @@ int spi_api::transfer(const uint8_t *inbuf, uint8_t *outbuf, size_t size){
     return 0;
 }
 
-spi_api::spi_api() {}
+spi_api::spi_api() : 
+    dummy (0),    
+    sync_byte(BL_SPI_SOF),
+    ack(BL_ACK)
+{}

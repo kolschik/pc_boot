@@ -46,9 +46,9 @@ private:
     static const uint8_t BL_ACK = 0x79U;
     static const uint8_t BL_NAK = 0x1FU;  
 
-    const uint8_t dummy = 0;    
-    const uint8_t sync_byte = BL_SPI_SOF; 
-    const uint8_t ack = BL_ACK;
+    const uint8_t dummy;    
+    const uint8_t sync_byte; 
+    const uint8_t ack;
     
 private:
     int send_command(cmd_list command);

@@ -42,7 +42,7 @@ protected:
     //serial::Serial *s = nullptr;
 
     uint32_t point_coast;
-    uint32_t point = 0;
+    uint32_t point;
     uint32_t point_pos;
 };
 
