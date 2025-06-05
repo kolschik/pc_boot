@@ -1,15 +1,13 @@
 
 
 #include "string.h"
-#include "stdint.h"
-#include "errno.h"
 #include <iostream>//директива препроцесора
 #include <fstream>
-#include "serial.h"
+// #include "serial.h"
 #include <unistd.h> // для Unix систем
 
-#include "uart_api.h"
-#include "can_api.h"
+// #include "uart_api.h"
+// #include "can_api.h"
 #include "spi_api.h"
 
 using namespace std;
@@ -88,7 +86,7 @@ int main (int argc, char *argv[]) {
         return EINVAL;
     }
     if (debug)  printf("filesize = %d\r\n", file_size);
-
+/*
     serial::Serial *ser = new serial::Serial();
 
     ser->setPort(argv[2]);
@@ -102,9 +100,11 @@ int main (int argc, char *argv[]) {
     }
 
     if (debug) printf("open tty ok\r\n");
-
+*/
 
     boot_api * api = nullptr;
+    api = new spi_api();      
+    /*
     if (strcmp(argv[1], "uart") == 0){
         api = new uart_api(ser);
     } else if (strcmp(argv[1], "can") == 0) {
@@ -115,7 +115,7 @@ int main (int argc, char *argv[]) {
         printf("not valid protocol %s\r\n", argv[1]);
         return EINVAL;
     }
-
+*/
     if (api->open()) {
         printf("no open pipe\r\n");        
         return EINVAL;

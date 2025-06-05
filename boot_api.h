@@ -1,10 +1,12 @@
-#pragma once
+#ifndef BOOT_API_HEADER
+#define BOOT_API_HEADER
 #include <stdint.h>
-#include "serial.h"
+#include <string.h>
+#include <stdio.h>
 
 class boot_api {
 public:
-    boot_api(serial::Serial *s) : s(s) {}
+    //boot_api(serial::Serial *s) : s(s) {}
     virtual int open() = 0;
     virtual int detect() = 0;    
     virtual int write(uint32_t offset, uint8_t *data, uint32_t l) = 0;
@@ -37,9 +39,11 @@ protected:
     static constexpr uint32_t point_cnt = 20;
     char buf[point_cnt + 1];
     uint32_t error_count = 0;
-    serial::Serial *s = nullptr;
+    //serial::Serial *s = nullptr;
 
     uint32_t point_coast = 0;
     uint32_t point = 0;
     uint32_t point_pos = 0;
 };
+
+#endif

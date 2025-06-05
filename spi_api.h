@@ -1,12 +1,12 @@
-#pragma once
+#ifndef SPI_API_HEADER
+#define SPI_API_HEADER
 #include "boot_api.h"
-#include <chrono>
-
-
+#include "stdint.h"
+#include "errno.h"
 
 class spi_api : public boot_api{
 public:
-    spi_api(serial::Serial *s);
+    spi_api();
 
     int open();
     int write(uint32_t offset, uint8_t *data, uint32_t l);
@@ -57,3 +57,5 @@ private:
 
     uint32_t HAL_GetTick(){return 0;}
 };
+
+#endif

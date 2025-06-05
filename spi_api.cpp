@@ -1,4 +1,5 @@
 #include "spi_api.h"
+#include <unistd.h> 
 
 int spi_api::open() {
     return 0;
@@ -7,9 +8,7 @@ int spi_api::open() {
 int spi_api::detect() {
     while (1){
         if (bl_connect()) {
-#if defined QNX            
-            delay(10);
-#endif            
+            usleep(10000);
             continue;
         }
         uint8_t command_buf[256];
@@ -81,7 +80,11 @@ int spi_api::write(uint32_t offset, uint8_t *data, uint32_t l){
             return EINVAL;
         }
         const uint16_t len_on_iter = 256;
-        if (bl_write(offset+i, &data[i], len_on_iter)) {
+        uint16_t len_send = len_on_iter;
+        if ((l - i) < 256) {
+            len_send = l-i;
+        }
+        if (bl_write(offset+i, &data[i], len_send)) {
             error_count++;
             continue;
         }
@@ -107,13 +110,17 @@ int spi_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
         }
 
         const uint16_t len_on_iter = 256;
+        uint16_t len_send = len_on_iter;
+        if ((l - i) < 256) {
+            len_send = l-i;
+        }        
         uint8_t read_buf[len_on_iter];
-        if (bl_read(offset+i, read_buf, len_on_iter)) {
+        if (bl_read(offset+i, read_buf, len_send)) {
             error_count++;
             continue;
         }
 
-        if (memcmp(read_buf, &data[i], len_on_iter)) {
+        if (memcmp(read_buf, &data[i], len_send)) {
             printf("verify error, offset %x \r\n", offset + i);
             return EINVAL;
         }
@@ -299,19 +306,14 @@ int spi_api::send_command(cmd_list command){
 int spi_api::wait_for_ack(uint32_t timeout) {
     int rv;
 
-    auto cur_time = std::chrono::system_clock::now(); 
-    auto t_stop = cur_time + std::chrono::milliseconds(timeout);
-    auto end_time = t_stop;
-
     if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return rv;
 
-    while(1)
-    {
+    while(1) {
         uint8_t resp;
         if ((rv = transfer(dummy, &resp, sizeof(resp))) != 0) return rv;  
         rv  = 0;
 
-        if (std::chrono::system_clock::now() > end_time){
+        if (timeout-- == 0){
             return ETIMEDOUT;
         }
 
@@ -322,6 +324,7 @@ int spi_api::wait_for_ack(uint32_t timeout) {
             rv = ECANCELED;
             break;
         }
+        usleep(1000);
     }
 
     if (transfer(ack, buf, sizeof(ack)) != 0) return EFAULT;
@@ -342,4 +345,4 @@ int spi_api::transfer(const uint8_t *inbuf, uint8_t *outbuf, size_t size){
     return 0;
 }
 
-spi_api::spi_api(serial::Serial *s) : boot_api(s) {}
+spi_api::spi_api() {}
