@@ -10,6 +10,7 @@
 
 #include "uart_api.h"
 #include "can_api.h"
+#include "spi_api.h"
 
 using namespace std;
 
@@ -51,8 +52,8 @@ int main (int argc, char *argv[]) {
     int debug = 0;
     if (argc != 5) {
         cout << "Wrong number of parameters. 4 parameters are required: " << endl;
-        cout << "1. protocol can, uart" << endl;
-        cout << "2. name tty" << endl;
+        cout << "1. protocol can, uart, spi" << endl;
+        cout << "2. name serial" << endl;
         cout << "3. Path to bin file (<<.bin>> file)." << endl;
         cout << "4. offset." << endl;
         cout << endl;
@@ -108,6 +109,8 @@ int main (int argc, char *argv[]) {
         api = new uart_api(ser);
     } else if (strcmp(argv[1], "can") == 0) {
         api = new can_api(ser);
+    } else if (strcmp(argv[1], "spi") == 0) {
+        api = new spi_api(ser);        
     } else {
         printf("not valid protocol %s\r\n", argv[1]);
         return EINVAL;

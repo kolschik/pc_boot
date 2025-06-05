@@ -13,7 +13,7 @@ public:
     virtual int lock(uint8_t lock = 0) = 0;
     virtual int start() = 0;    
 protected:
-    virtual int send_command(const char *str, uint32_t size, uint32_t timeout) = 0;
+
 
     void prepare_print(uint32_t l){
         point_coast = l / point_cnt;
