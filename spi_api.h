@@ -28,9 +28,7 @@ private:
     static uint8_t xor_checksum(const uint8_t pData[], uint16_t len);    
 private:
     uint8_t buf[512];  
-    const uint8_t dummy[1] = {0};    
-    const uint8_t sync_byte[1] = {BL_SPI_SOF}; 
-    const uint8_t ack[1] = {BL_ACK};        
+
     enum class cmd_list : uint8_t{
         GET_CMD_COMMAND = 0x00U,   // Get CMD command
         GET_VER_COMMAND = 0x01U,  // Get Version command
@@ -44,10 +42,14 @@ private:
         RP_COMMAND=0x82U,  // Readout Protect command
         RU_COMMAND=0x92U // Readout Unprotect command
     };
-    uint8_t const BL_SPI_SOF  = 0x5AU;
-    uint8_t const BL_ACK = 0x79U;
-    uint8_t const BL_NAK = 0x1FU;  
+    static const uint8_t BL_SPI_SOF  = 0x5AU;
+    static const uint8_t BL_ACK = 0x79U;
+    static const uint8_t BL_NAK = 0x1FU;  
 
+    const uint8_t dummy = 0;    
+    const uint8_t sync_byte = BL_SPI_SOF; 
+    const uint8_t ack = BL_ACK;
+    
 private:
     int send_command(cmd_list command);
     int receive_data(uint8_t *pData);

@@ -152,9 +152,9 @@ int spi_api::bl_connect(){
 
     // Send synchronization Byte
 
-    if ((rv = transfer(sync_byte, buf, sizeof(sync_byte))) != 0) return rv;
-    if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return rv;
-    if ((rv = transfer(dummy, &resp, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&sync_byte, buf, sizeof(sync_byte))) != 0) return rv;
+    if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&dummy, &resp, sizeof(dummy))) != 0) return rv;
 
     if(resp == BL_ACK) {
         // Received ACK: send ACK
@@ -186,8 +186,8 @@ int spi_api::bl_get_version(uint8_t *ver){
     if ((rv = send_command(cmd_list::GET_VER_COMMAND)) != 0) return rv;
 
     // Receive data frame
-    if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return rv;
-    if ((rv = transfer(dummy,ver, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&dummy,ver, sizeof(dummy))) != 0) return rv;
 
     // Wait for ACK or NACK frame
     if (wait_for_ack()) return EFAULT;
@@ -267,7 +267,7 @@ int spi_api::bl_read(uint32_t addr, uint8_t *pData, uint16_t len){
     if ((rv = transfer(nob_frame, buf, sizeof(nob_frame))) != 0) return rv;
     if (wait_for_ack()) return EFAULT;
 
-    if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
     clr_buf();
     if ((rv = transfer(buf, pData, len)) != 0) return rv;
 
@@ -277,8 +277,8 @@ int spi_api::bl_read(uint32_t addr, uint8_t *pData, uint16_t len){
 int spi_api::receive_data(uint8_t *pData){
     int rv;
     uint8_t rx_number_of_bytes;
-    if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return -rv;
-    if ((rv = transfer(dummy, &rx_number_of_bytes, sizeof(dummy))) != 0) return -rv;
+    if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return -rv;
+    if ((rv = transfer(&dummy, &rx_number_of_bytes, sizeof(dummy))) != 0) return -rv;
     clr_buf();
     if ((rv = transfer(buf, pData, 1U + (uint16_t)rx_number_of_bytes)) != 0) return -rv;
 
@@ -306,11 +306,11 @@ int spi_api::send_command(cmd_list command){
 int spi_api::wait_for_ack(uint32_t timeout) {
     int rv;
 
-    if ((rv = transfer(dummy, buf, sizeof(dummy))) != 0) return rv;
+    if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
 
     while(1) {
         uint8_t resp;
-        if ((rv = transfer(dummy, &resp, sizeof(resp))) != 0) return rv;  
+        if ((rv = transfer(&dummy, &resp, sizeof(resp))) != 0) return rv;  
         rv  = 0;
 
         if (timeout-- == 0){
@@ -327,7 +327,7 @@ int spi_api::wait_for_ack(uint32_t timeout) {
         usleep(1000);
     }
 
-    if (transfer(ack, buf, sizeof(ack)) != 0) return EFAULT;
+    if (transfer(&ack, buf, sizeof(ack)) != 0) return EFAULT;
     return rv;
 }
 

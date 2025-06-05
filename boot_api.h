@@ -36,14 +36,14 @@ protected:
     }
 
 protected:
-    static constexpr uint32_t point_cnt = 20;
+    static const uint32_t point_cnt = 20;
     char buf[point_cnt + 1];
-    uint32_t error_count = 0;
+    uint32_t error_count;
     //serial::Serial *s = nullptr;
 
-    uint32_t point_coast = 0;
+    uint32_t point_coast;
     uint32_t point = 0;
-    uint32_t point_pos = 0;
+    uint32_t point_pos;
 };
 
 #endif

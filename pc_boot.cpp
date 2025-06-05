@@ -3,6 +3,7 @@
 #include "string.h"
 #include <iostream>//директива препроцесора
 #include <fstream>
+#include <errno.h>
 // #include "serial.h"
 #include <unistd.h> // для Unix систем
 
