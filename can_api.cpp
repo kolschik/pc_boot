@@ -195,8 +195,51 @@ int can_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
 
 
 int can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
+    offset = offset - 0x08000000;
+    uint32_t error_count = 0;
+    prepare_print(l);    
+    for (uint32_t i=0; i<l; ){
+        if (error_count >= 5){
+            printf("very big error \r\n");
+            return EINVAL;
+        }
+        uint32_t *l_byte, *h_byte;
+        l_byte = (uint32_t *)&data[i];
+        h_byte = l_byte + 1;
+
+        boot_id_t id = {0};
+        id.com.address = offset+i;
+        id.com.command = boot_code_write;
+
+        char out_buf[64] = {0};
+        //T 000050b8 8 0800 6c5d 0800 6c5d
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, *h_byte, *l_byte);
+        uint32_t size = strlen(out_buf);      
+
+        if (send_command(out_buf, size)) {
+            printf("command not accept \r\n");
+            return EINVAL;
+        }
+        uint8_t answer[8]; 
+
+        boot_id_t id_rcv = {0};
+        if ((wait_answer(&id_rcv.raw, answer, 1000)) < 0){
+            error_count++;
+            continue;
+        }
+        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
+            printf("rcv = %x, pld = %x \r\n", id.raw, answer[0]);
+            error_count++;
+            continue;
+        }
+        error_count = 0;
+      
+        i+=8;
+        point_print(i);
+    }
     return 0;
 }
+
 int can_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
     return 0;
 }
@@ -205,3 +248,29 @@ int can_api::start(){
 }
 
 can_api::can_api(serial::Serial *s) : boot_api(s) {}
+
+/*
+
+    uint32_t max_size = 1024*1024;
+    uint32_t file_size = 0;
+
+    uint8_t *in_flash = nullptr;
+    in_flash = new uint8_t[max_size];
+    memset(in_flash, 0xFF, max_size);
+
+    /// Копируем bootloader.bin.
+    r = read_bin_file(argv[2], in_flash, &file_size);
+    if (r){
+        cout << "File " << argv[2] << " does not exist!\n" << endl;
+        return EINVAL;
+    }
+    printf("filesize = %d\r\n", file_size);
+    offset = offset - 0x08000000;
+
+
+
+    printf("\r\nboot succeced \r\n");     
+    return 0;
+
+
+    */
