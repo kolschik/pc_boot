@@ -127,6 +127,11 @@ int spi_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
 
 
 int spi_api::start(){
+    int rv;
+    // Send start of frame (0x5A) + Go command frame (0x21 0xDE)
+    if ((rv = send_command(cmd_list::GO_COMMAND)) != 0) return rv;
+    if ((rv = send_addr(0x08000000) != 0)) return rv;
+
     return 0;
 }
 
