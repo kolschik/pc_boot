@@ -1,0 +1,22 @@
+set(TOOLCHAIN Linux_ARM)
+
+set(CMAKE_${lang}_COMPILE_OPTIONS_SYSROOT "--sysroot=")
+
+set(ARCH arm)
+
+if(DEFINED ENV{ARM_LINUX_GNUEABIHF_TARGET})
+    set(ARM_LINUX_GNUEABIHF_TARGET $ENV{ARM_LINUX_GNUEABIHF_TARGET})
+else()
+    set(ARM_LINUX_GNUEABIHF_TARGET /opt/arm/arm-cortex_a8-linux-gnueabihf)
+endif()
+
+set(CMAKE_C_COMPILER ${ARM_LINUX_GNUEABIHF_TARGET}/bin/arm-cortex_a8-linux-gnueabihf-gcc)
+set(CMAKE_C_COMPILER_TARGET ${ARCH})
+set(CMAKE_CXX_COMPILER ${ARM_LINUX_GNUEABIHF_TARGET}/bin/arm-cortex_a8-linux-gnueabihf-g++)
+set(CMAKE_CXX_COMPILER_TARGET ${ARCH})
+
+set(CMAKE_FIND_ROOT_PATH ${ARM_LINUX_GNUEABIHF_TARGET}/arm-cortex_a8-linux-gnueabihf/sysroot)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+
+set(CMAKE_SYSTEM_NAME Linux)
+set(TARGET_SYSTEM Linux)

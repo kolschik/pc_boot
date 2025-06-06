@@ -1,5 +1,5 @@
 #include "spi_api.h"
-#include <unistd.h> 
+#include <unistd.h>
 
 int spi_api::open() {
     return 0;
@@ -33,6 +33,7 @@ int spi_api::detect() {
         }
 
         printf("found mcu id %x \r\n", id);
+        break;
     }
     return 0;
 }
@@ -45,14 +46,14 @@ int spi_api::lock(uint8_t lock){
 int spi_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
     int rv;
     // Send start of frame (0x5A) + Erase Memory command frame (0x44 0xBB)
-    if ((rv = send_command(cmd_list::EMEM_COMMAND)) != 0) return rv;
+    if ((rv = send_command(EMEM_COMMAND)) != 0) return rv;
 
     // Send data frame: nb (2 Bytes), the number of pages or sectors to be erased + checksum (1 Byte)
-    uint8_t data_frame[3];        
+    uint8_t data_frame[3];
     data_frame[0] = (uint8_t) (page_cnt >> 8) & 0xFFU;
     data_frame[1] = (uint8_t) page_cnt & 0xFFU;
     data_frame[2] = data_frame[0] ^ data_frame[1];
-    if ((rv = transfer(data_frame, buf, sizeof(data_frame))) != 0) return rv;    
+    if ((rv = transfer(data_frame, buf, sizeof(data_frame))) != 0) return rv;
 
     uint32_t timeout = page_cnt & 0xff00 ? 50000 : 50;
 
@@ -61,6 +62,7 @@ int spi_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
         data_frame[0] = (uint8_t) (start >> 8) & 0xFFU;
         data_frame[1] = (uint8_t) start & 0xFFU;
         data_frame[2] = data_frame[0] ^ data_frame[1];
+        if ((rv = transfer(data_frame, buf, sizeof(data_frame))) != 0) return rv;
     }
 
     // Receive data frame
@@ -97,10 +99,13 @@ int spi_api::write(uint32_t offset, uint8_t *data, uint32_t l){
     return 0;
 }
 
-
-
 int spi_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
     prepare_print(l);
+    int cut_name = 0;
+    if (((*(uint32_t*)data & 0xff000000) != 0x20000000) && ((*(uint32_t*)(data+4) & 0xff000000) != 0x08000000)){
+        printf("firmware containes name\r\n");
+        cut_name = 1;
+    }
     uint32_t error_count = 0;
     uint32_t i;
     for (i=0; i<l;){
@@ -113,17 +118,23 @@ int spi_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
         uint16_t len_send = len_on_iter;
         if ((l - i) < 256) {
             len_send = l-i;
-        }        
-        uint8_t read_buf[len_on_iter];
-        if (bl_read(offset+i, read_buf, len_send)) {
-            error_count++;
-            continue;
         }
 
-        if (memcmp(read_buf, &data[i], len_send)) {
-            printf("verify error, offset %x \r\n", offset + i);
-            return EINVAL;
+        if ((cut_name == 0) || (i >= 512)){
+            uint8_t read_buf[len_on_iter];
+            uint32_t read_offset = offset+i;
+            if (cut_name) read_offset = read_offset - 512;
+            if (bl_read(read_offset, read_buf, len_send)) {
+                error_count++;
+                continue;
+            }
+
+            if (memcmp(read_buf, &data[i], len_send)) {
+                printf("verify error, offset %x \r\n", offset + i);
+                return EINVAL;
+            }
         }
+
         error_count = 0;
         i+=len_on_iter;
         point_print(i);
@@ -131,12 +142,10 @@ int spi_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
     return 0;
 }
 
-
-
 int spi_api::start(){
     int rv;
     // Send start of frame (0x5A) + Go command frame (0x21 0xDE)
-    if ((rv = send_command(cmd_list::GO_COMMAND)) != 0) return rv;
+    if ((rv = send_command(GO_COMMAND)) != 0) return rv;
     if ((rv = send_addr(0x08000000) != 0)) return rv;
 
     return 0;
@@ -155,7 +164,7 @@ int spi_api::bl_connect(){
     if ((rv = transfer(&sync_byte, buf, sizeof(sync_byte))) != 0) return rv;
     if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
     if ((rv = transfer(&dummy, &resp, sizeof(dummy))) != 0) return rv;
-
+    printf("RESP=%X\n", resp);
     if(resp == BL_ACK) {
         // Received ACK: send ACK
         if ((rv = transfer(&ack, buf, sizeof(ack))) != 0) return rv;
@@ -172,7 +181,7 @@ void spi_api::clr_buf(){
 int spi_api::bl_get_command(uint8_t *pData){
     int rv;
     // Send start of frame (0x5A) + GET command frame (0x00 0xFF)
-    if ((rv = send_command(cmd_list::GET_CMD_COMMAND)) != 0) return rv;
+    if ((rv = send_command(::GET_CMD_COMMAND)) != 0) return rv;
     // Receive data frame
     if ((rv = receive_data(pData)) < 0) return -rv;
 
@@ -183,7 +192,7 @@ int spi_api::bl_get_version(uint8_t *ver){
     int rv;
 
     // Send start of frame (0x5A) + Get Version command frame (0x01 0xEE)
-    if ((rv = send_command(cmd_list::GET_VER_COMMAND)) != 0) return rv;
+    if ((rv = send_command(::GET_VER_COMMAND)) != 0) return rv;
 
     // Receive data frame
     if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
@@ -199,7 +208,7 @@ int spi_api::bl_get_version(uint8_t *ver){
 int spi_api::bl_get_id(uint16_t *id) {
     int rv;
     // Send start of frame (0x5A) + Get ID command frame (0x02 0xFD)
-    if ((rv = send_command(cmd_list::GET_ID_COMMAND)) != 0) return rv;
+    if ((rv = send_command(::GET_ID_COMMAND)) != 0) return rv;
 
     uint8_t rx_buf[512];
     if ((rv = receive_data(rx_buf)) < 0) return -rv;
@@ -222,10 +231,9 @@ int spi_api::send_addr(uint32_t addr){
     addr_frame[4] = xor_checksum(addr_frame, sizeof(addr));
 
     if (transfer(addr_frame, buf, sizeof(addr_frame))) return EFAULT;
-    if (wait_for_ack()) return EFAULT;  
-    return 0;  
+    if (wait_for_ack()) return EFAULT;
+    return 0;
 }
-
 
 int spi_api::bl_write(uint32_t addr, uint8_t *pData, uint16_t len){
     int rv;
@@ -233,21 +241,20 @@ int spi_api::bl_write(uint32_t addr, uint8_t *pData, uint16_t len){
     if ((len == 0) || (len > 256)) {
         return EINVAL;
     }
-
+    uint8_t checksum = xor_checksum(pData, len) ^ (len - 1);
     // Send start of frame (0x5A) + wmem command frame (0x02 0xFD)
-    if ((rv = send_command(cmd_list::WMEM_COMMAND)) != 0) return rv;
+    if ((rv = send_command(WMEM_COMMAND)) != 0) return rv;
     if ((rv = send_addr(addr) != 0)) return rv;
 
-    uint8_t data_frame[257];
+    uint8_t data_frame[258];
     data_frame[0] = len - 1;
     memcpy(&data_frame[1], pData, len);
-
-    if ((rv = transfer(data_frame, buf, len)) != 0) return rv;
+    data_frame[len+1] = checksum;
+    if ((rv = transfer(data_frame, buf, len+2)) != 0) return rv;
     if (wait_for_ack()) return EFAULT;
 
     return 0;
 }
-
 
 int spi_api::bl_read(uint32_t addr, uint8_t *pData, uint16_t len){
     int rv;
@@ -257,7 +264,7 @@ int spi_api::bl_read(uint32_t addr, uint8_t *pData, uint16_t len){
     }
 
     // Send start of frame (0x5A) + Read Memory command frame (0x11 0xEE)
-    if ((rv = send_command(cmd_list::RMEM_COMMAND)) != 0) return rv;
+    if ((rv = send_command(::RMEM_COMMAND)) != 0) return rv;
     if ((rv = send_addr(addr) != 0)) return rv;
 
     // Send data frame: number of Bytes to be read (1 Byte) + checksum (1 Byte)
@@ -283,11 +290,11 @@ int spi_api::receive_data(uint8_t *pData){
     if ((rv = transfer(buf, pData, 1U + (uint16_t)rx_number_of_bytes)) != 0) return -rv;
 
     if (wait_for_ack()) return -EFAULT;
-    
+
     return 1U + (uint16_t)rx_number_of_bytes;
 }
 
-int spi_api::send_command(cmd_list command){
+int spi_api::send_command(cmd_list_t command){
     uint8_t cmd_frame[3];
     cmd_frame[0] = BL_SPI_SOF;
     cmd_frame[1] = static_cast<uint8_t>(command);
@@ -310,14 +317,14 @@ int spi_api::wait_for_ack(uint32_t timeout) {
 
     while(1) {
         uint8_t resp;
-        if ((rv = transfer(&dummy, &resp, sizeof(resp))) != 0) return rv;  
+        if ((rv = transfer(&dummy, &resp, sizeof(resp))) != 0) return rv;
         rv  = 0;
 
         if (timeout-- == 0){
             return ETIMEDOUT;
         }
 
-        if(resp == BL_ACK) {   
+        if(resp == BL_ACK) {
             rv = 0;
             break;
         } else if (resp == BL_NAK) {
@@ -342,11 +349,30 @@ uint8_t spi_api::xor_checksum(const uint8_t pData[], uint16_t len) {
 }
 
 int spi_api::transfer(const uint8_t *inbuf, uint8_t *outbuf, size_t size){
-    return 0;
+    //printf("START TRANSF\n");
+    int rv = m_spi->transfer(m_spi_cs, const_cast<uint8_t *>(inbuf), size, outbuf);
+    if (rv > 0) {
+        return 0;
+    }
+    return rv;
 }
 
-spi_api::spi_api() : 
-    dummy (0),    
+spi_api::spi_api() :
+    dummy (0),
     sync_byte(BL_SPI_SOF),
     ack(BL_ACK)
-{}
+{
+    spi_hardware_cfg_t spi_cfg = {0};
+    int i;
+    for (i = 0; i < 4; i++) {
+        spi_cfg.cs_cfg[i].CPOL = true;
+        spi_cfg.cs_cfg[i].NCPHA = false;
+        spi_cfg.cs_cfg[i].CSAAT = false;
+        spi_cfg.cs_cfg[i].BITS = 0;
+        spi_cfg.cs_cfg[i].DLYBCT = 10;
+        spi_cfg.cs_cfg[i].DLYBS = 200;
+        spi_cfg.cs_cfg[i].baudrate = 100000;
+    }
+    m_spi_cs = 14;
+    m_spi = new Spi("SAMA5D3", &spi_cfg);
+}

@@ -76,7 +76,7 @@ int main (int argc, char *argv[]) {
     uint32_t max_size = 1024*1024;
     uint32_t file_size = 0;
 
-    uint8_t *in_flash = nullptr;
+    uint8_t *in_flash = 0;
     in_flash = new uint8_t[max_size];
     memset(in_flash, 0xFF, max_size);
 
@@ -103,49 +103,49 @@ int main (int argc, char *argv[]) {
     if (debug) printf("open tty ok\r\n");
 */
 
-    boot_api * api = nullptr;
-    api = new spi_api();      
+    boot_api * api = NULL;
+    api = new spi_api();
     /*
     if (strcmp(argv[1], "uart") == 0){
         api = new uart_api(ser);
     } else if (strcmp(argv[1], "can") == 0) {
         api = new can_api(ser);
     } else if (strcmp(argv[1], "spi") == 0) {
-        api = new spi_api(ser);        
+        api = new spi_api(ser);
     } else {
         printf("not valid protocol %s\r\n", argv[1]);
         return EINVAL;
     }
 */
     if (api->open()) {
-        printf("no open pipe\r\n");        
+        printf("no open pipe\r\n");
         return EINVAL;
     }
     if (debug) printf("bus open \r\n");
 
 
     if (api->detect()){
-        printf("no detect device\r\n");        
+        printf("no detect device\r\n");
         return EINVAL;
     }
 
     if (api->lock(1)){
         return EINVAL;
     }
-    if (debug) printf("unlock succeced \r\n"); 
+    if (debug) printf("unlock succeced \r\n");
 
 
     uint32_t page_count = (flash_size - (offset - 0x08000000)) / page_size;
     if (debug) printf("page erase count = %d \r\n", page_count);
 
-    if (api->erase(offset, page_count, page_size)){
+    if (api->erase(6, 5, 0)){
         printf("erase failed \r\n");
         return EINVAL;
     }
 
- 
-    printf("\r\n"); 
-    printf("erase succeced \r\n"); 
+
+    printf("\r\n");
+    printf("erase succeced \r\n");
 
     if (api->write(offset, in_flash, file_size)){
         printf("write error \r\n");
@@ -156,7 +156,7 @@ int main (int argc, char *argv[]) {
     if (api->lock(0)){
         return EINVAL;
     }
-    if (debug) printf("lock succeced \r\n");     
+    if (debug) printf("lock succeced \r\n");
 
     if (api->verify(offset, in_flash, file_size)){
         printf("verify error \r\n");
@@ -173,7 +173,7 @@ int main (int argc, char *argv[]) {
         file_size &= ~0xff;
         file_size += 256;
     }
-    printf("aligned 256 = %d\r\n", file_size);    
+    printf("aligned 256 = %d\r\n", file_size);
 
 
     uint32_t cpy_size = 512;
@@ -187,8 +187,8 @@ int main (int argc, char *argv[]) {
         memcpy(cr_buf, &in_flash[cpy_size], iter_size);
 
 
-        //AES_ECB_encrypt(&ctx, cr_buf);  
-        memcpy(&out_flash[cpy_size], cr_buf, 16);              
+        //AES_ECB_encrypt(&ctx, cr_buf);
+        memcpy(&out_flash[cpy_size], cr_buf, 16);
 
     }
     /// Записываем итоговый bin-файл.

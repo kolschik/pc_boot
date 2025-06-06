@@ -1,0 +1,41 @@
+#ifndef AT91SAMA5D3_PMC_H_
+#define AT91SAMA5D3_PMC_H_
+
+/*
+ * PMC base
+ */
+#define AT91SAMA5D3_PMC_BASE        0xFFFFFC00
+#define AT91SAMA5D3_PMC_SIZE        0x114
+
+/* Power Management Controller registers offsets */
+#define AT91SAMA5D3_PMC_SCER        0x000
+#define AT91SAMA5D3_PMC_SCDR        0x004
+#define AT91SAMA5D3_PMC_SCSR        0x008
+#define AT91SAMA5D3_PMC_PCER0       0x010
+#define AT91SAMA5D3_PMC_PCDR0       0x014
+#define AT91SAMA5D3_PMC_PCSR0       0x018
+#define AT91SAMA5D3_PMC_UCKR        0x01C
+#define AT91SAMA5D3_PMC_MOR         0x020
+#define AT91SAMA5D3_PMC_MCFR        0x024
+#define AT91SAMA5D3_PMC_PLLAR       0x028
+#define AT91SAMA5D3_PMC_MCKR        0x030
+#define AT91SAMA5D3_PMC_USB         0x038
+#define AT91SAMA5D3_PMC_SMD         0x03C
+#define AT91SAMA5D3_PMC_PCK0        0x040
+#define AT91SAMA5D3_PMC_PCK1        0x044
+#define AT91SAMA5D3_PMC_PCK2        0x048
+#define AT91SAMA5D3_PMC_IER         0x060
+#define AT91SAMA5D3_PMC_IDR         0x064
+#define AT91SAMA5D3_PMC_SR          0x068
+#define AT91SAMA5D3_PMC_IMR         0x06C
+#define AT91SAMA5D3_PMC_FOCR        0x078
+#define AT91SAMA5D3_PMC_PLLICPR     0x080
+#define AT91SAMA5D3_PMC_WPMR        0x0E4
+#define AT91SAMA5D3_PMC_WPSR        0x0E8
+#define AT91SAMA5D3_PMC_PCER1       0x100
+#define AT91SAMA5D3_PMC_PCDR1       0x104
+#define AT91SAMA5D3_PMC_PCSR1       0x108
+#define AT91SAMA5D3_PMC_PCR         0x10C
+#define AT91SAMA5D3_PMC_OCR         0x110
+
+#endif

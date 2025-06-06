@@ -1,0 +1,16 @@
+#!/bin/bash
+
+SUBMODULE_NAME=`echo $1 | tr - _`
+
+if [ -z $SUBMODULE_NAME ]; then
+	exit 1
+fi
+
+if [ "$SUBMODULE_NAME" == "f" ]; then
+	SUBMODULE_NAME="flib"
+fi 
+
+P=`cat $2include/scm.h | grep -w FSOFT_SCM_COMMIT_CODE_$SUBMODULE_NAME | awk '{ print $3 }'`
+
+echo ${P//\"/\\\"}
+

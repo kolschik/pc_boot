@@ -1,0 +1,129 @@
+# Минимальная версия cmake.
+cmake_minimum_required(VERSION 3.15.0)
+
+# Указываем toolchains для требуемой серии микроконтроллера.
+set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/toolchains/stm/f4xx_toolchain.cmake)
+
+# Используемый стандарт.
+set(CMAKE_CXX_STANDARD 14)
+
+# Указываем параметры выбранного микроконтроллера.
+set(MCU "stm32f415xx")
+set(HSE "16000000")
+set(HAL_MCU_SERIES_NAME "STM32F415xx")
+
+# Имя проекта и используемые в нем языки (C, C++. ASM).
+project(sp C CXX ASM)
+
+# Указываем, какие submodule используются в проекте.
+set(MODULE_EFLIB "ON")
+set(MODULE_FREERTOS "ON")
+set(MODULE_MCU_HARDLIB "ON")
+
+# Требуемые модули HAL.
+set(MODULE_HAL_ADC "ON")
+set(MODULE_HAL_CAN "ON")
+set(MODULE_HAL_CRC "ON")
+set(MODULE_HAL_DAC "ON")
+set(MODULE_HAL_DMA "ON")
+set(MODULE_HAL_GPIO "ON")
+set(MODULE_HAL_PWR "ON")
+set(MODULE_HAL_RCC "ON")
+set(MODULE_HAL_SPI "ON")
+set(MODULE_HAL_FLASH "ON")
+set(MODULE_HAL_TIM "ON")
+set(MODULE_HAL_UART "ON")
+
+set(MODULE_HAL_LL_USART "ON")
+
+# EFLIB модули.
+# BOOT.
+set(MODULE_BOOTLOADER "ON")
+
+# CRC
+set(MODULE_CPP_INTEGRITY_CONTROL "ON")
+set(MODULE_CRC16_CCITT "ON")
+set(MODULE_CRC32_ETH_4C11DB7 "ON")
+set(MODULE_MC_INTEGRITY_CONTROL_RAM "ON")
+set(MODULE_MD5 "ON")
+
+# ICS
+set(MODULE_AD779X "ON")
+set(MODULE_AD5328 "ON")
+set(MODULE_AS5045 "ON")
+set(MODULE_MPU6500 "ON")
+set(MODULE_FXOS8700 "ON")
+set(MODULE_MAX6629 "ON")
+
+# INTERFACES
+set(MODULE_CLI "ON")
+set(MODULE_CLI_DESC "ON")
+set(MODULE_FVIN "ON")
+set(MODULE_MODBUS "ON")
+set(MODULE_PELCO_D "ON")
+set(MODULE_SBUS "ON")
+
+# MATH
+set(MODULE_ACTUATOR_ENDPOINT "ON")
+set(MODULE_ARITHMETIC_MEAN "ON")
+set(MODULE_MEDIAN_FILTER "ON")
+set(MODULE_MOVING_AVERAGE "ON")
+set(MODULE_PEAK_DETECTOR "ON")
+
+# MC_PERIPH
+set(MODULE_ADC "ON")
+set(MODULE_ADC_ONE_CH "ON")
+set(MODULE_CAN "ON")
+set(MODULE_CRC32 "ON")
+set(MODULE_DMA "ON")
+set(MODULE_GLOBAL_PORT_ENABLED "ON")
+set(MODULE_PIN "ON")
+set(MODULE_PIN_IT "ON")
+set(MODULE_PIN_MULTIFUNC "ON")
+set(MODULE_PIN_MULTIFUNC_IT "ON")
+set(MODULE_SPI_MASTER "ON")
+set(MODULE_SPI_SLAVE "ON")
+set(MODULE_SYSCFG_IO "ON")
+set(MODULE_TIM_BASE "ON")
+set(MODULE_TIM_CAPTURE_FREQ "ON")
+set(MODULE_TIM_COUNTER "ON")
+set(MODULE_TIM_IRQ "ON")
+set(MODULE_TIM_PWM "ON")
+set(MODULE_TIM_PWM_ONE_CHANNEL "ON")
+set(MODULE_UART "ON")
+set(MODULE_WDT "ON")
+
+# SERVICE
+set(MODULE_CAPTURE_FREQUENCY "ON")
+set(MODULE_MAGNETOMETER "ON")
+set(MODULE_PID "ON")
+set(MODULE_THERMISTOR "ON")
+set(MODULE_THERMOCOUPLE "ON")
+set(MODULE_VAL_TIMEOUT "ON")
+
+# SYSCFG
+set(MODULE_SYSCFG "ON")
+
+# Определения, специфичные для проекта.
+add_definitions(
+        -D${DEVICE}
+        -D${MODE}
+)
+
+# Дизассемблирование выходного файла при сборке под
+# микроконтроллер (не в симуляции).
+set(DISASEMMBLY_ELF "OFF")
+
+# Создавать MAP файл из итогового файла
+# при сборке под микроконтроллер (не в симуляции).
+set(MAP_CREATION "OFF")
+
+# В случае наличия нестандартных путей в проекте (что не желательно).
+include_directories(
+        "no_standard_path/inc"
+)
+
+list(APPEND ${PROJECT_NAME}_SRC "${CMAKE_SOURCE_DIR}/no_standart_dir/file.cpp")
+
+# Вызываем непосредственно скрипт сборки.
+include(${CMAKE_SOURCE_DIR}/cmake/mcu_configure.cmake)

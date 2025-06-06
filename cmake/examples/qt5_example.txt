@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.14)
+
+# Имя проекта. Вместо project_name вписать своё
+project(project_name)
+set(CMAKE_CXX_STANDARD 14)
+
+# С помощью find_package производится поиск необходимых библиотек Qt5.
+# После компиляции мы будем с ними линковаться. Библиотеки сгруппированы
+# в пакеты. Полный список доступных модулей описан в вики.
+find_package(Qt5Core REQUIRED)
+find_package(Qt5Gui REQUIRED)
+find_package(Qt5Widgets REQUIRED)
+find_package(Qt5Network REQUIRED)
+# Использовать метакомпилятор, когда это необходимо
+set(CMAKE_AUTOMOC ON)
+# Так как moc-файлы будут сгенерированы в директории компиляции, нам
+# нужно сообщить CMake'у, что он должен искать файлы компиляции в
+# этой директории.
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+include_directories(${CMAKE_SOURCE_DIR}/inc)
+
+# Указываем, что будем собирать исполняемый файл с именем ${PROJECT_NAME},
+# из исходников ${SOURCES}
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+# Компановка. В данном случае производится только компановка с библиотеками
+# Qt5. Если в проекте используются дополнительные библиотеки Qt5 - добавить
+# соответствующие строки по образу и подобию. Библиотеки из системных путей
+# добавляются следующим образом:
+# target_link_libraries(${PROJECT_NAME} -lpthread -l...)
+target_link_libraries(${PROJECT_NAME} Qt5::Core)
+target_link_libraries(${PROJECT_NAME} Qt5::Gui)
+target_link_libraries(${PROJECT_NAME} Qt5::Widgets)
+target_link_libraries(${PROJECT_NAME} Qt5::Network)

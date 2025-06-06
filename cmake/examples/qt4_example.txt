@@ -1,0 +1,41 @@
+cmake_minimum_required(VERSION 3.14)
+
+# Имя проекта. Вместо project_name вписать своё
+project(project_name)
+set(CMAKE_CXX_STANDARD 14)
+
+# Файлы исходного кода.
+# Функция file выбирает их по маске. Вместо GLOB можно выбрать GLOB_RECURSE,
+# если необходимо сформировать список исходников рекурсивно обходя каталоги.
+# перед *.cpp можно указать путь к директории, если необходимо, например так:
+# file(GLOB SOURCES "user_code/*.cpp"). Сформированный список сохраняется в
+# переменную SOURCES.
+file(GLOB SOURCES "*.cpp")
+
+# Список заголовочных файлов, в которых содержатся классы, связаные с Qt
+# (наследованые от классов Qt, или помеченые макросом Q_OBJECT) для
+# передачи метакомпилятору. Добавлять вручную.
+set(MOC_HEADERS mainwindow.h
+                my_widget.h
+)
+
+# Список директорий с заголовочными файлами. Сейчас здесь указана переменная
+# CMAKE_SOURCE_DIR - это корневая директория, в которой находится этот
+# CMakeLists.txt
+include_directories(${CMAKE_BINARY_DIR})
+
+# Специфичные для Qt4 функции
+find_package(Qt4 REQUIRED)
+include(${QT_USE_FILE})
+add_definitions(${QT_DEFENITIONS})
+QT4_WRAP_CPP(MOC_SRCS ${MOC_HEADERS})
+
+# Указываем, что будем собирать исполняемый файл с именем ${PROJECT_NAME},
+# из исходников ${SOURCES} и исходников метакомпилятора ${MOC_SRCS}
+add_executable(${PROJECT_NAME} ${SOURCES} ${MOC_SRCS})
+
+# Компановка. В данном случае производится только компановка с библиотеками
+# Qt4. Если в проекте используются дополнительные библиотеки - их можно
+# указать после ${QT_LIBRARIES}, например так: -lpthread (если библиотека в системных
+# путях)
+target_link_libraries(${PROJECT_NAME} ${QT_LIBRARIES})
