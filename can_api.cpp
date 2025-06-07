@@ -12,11 +12,19 @@ int can_api::open() {
 }
 
 int can_api::detect() {
+    uint32_t iter=0;
     while (1){
         boot_id_t id = {0};
         id.com.address = 0;
         id.com.command = boot_code_name;
+        iter ^= 1;
+        if (iter){
+        printf("x");
+        }else {
+        printf("+");
+        }
 
+        fflush(stdout);
         char out_buf[64] = {0};
         uint32_t dummy = 0;
         snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
@@ -32,10 +40,14 @@ int can_api::detect() {
         if ((rv = wait_answer(&id_rcv.raw, answer, 100)) < 0){
             continue;
         }
-        if ((id_rcv.raw != id.raw) || (rv != 3)){
+        if ((id_rcv.raw != id.raw) || (rv != 8)){
             continue;
         }
-        printf("device detected = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
+        flash_size = answer[6] * 1024;
+        sector_size = answer[4] | ((uint16_t) answer[5] << 8);
+        printf("device detected = %c%c%c, flash size = %d kbytes, sector_size = %d b\r\n", answer[0], 
+            answer[1], answer[2], flash_size, sector_size); 
+        printf(" = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
         break;
     }
     return 0;
@@ -164,7 +176,6 @@ int can_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
         boot_id_t id = {0};
         id.com.address = start+i*page_size;
         id.com.command = boot_code_erase;
-
         char out_buf[64] = {0};
         //T 000050b8 8 0800 6c5d 0800 6c5d
         uint32_t dummy = 0;
@@ -172,8 +183,8 @@ int can_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
         uint32_t size = strlen(out_buf);      
 
         if (send_command(out_buf, size)) {
-            printf("command not accept \r\n");
-            return EINVAL;
+            error_count++;
+            continue;
         }
 
         uint8_t answer[8]; 
@@ -197,6 +208,7 @@ int can_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
 int can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
     offset = offset - 0x08000000;
     uint32_t error_count = 0;
+   
     prepare_print(l);    
     for (uint32_t i=0; i<l; ){
         if (error_count >= 5){
@@ -217,8 +229,8 @@ int can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
         uint32_t size = strlen(out_buf);      
 
         if (send_command(out_buf, size)) {
-            printf("command not accept \r\n");
-            return EINVAL;
+            error_count++;
+            continue;
         }
         uint8_t answer[8]; 
 
@@ -241,8 +253,62 @@ int can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
 }
 
 int can_api::verify(uint32_t offset, uint8_t *data, uint32_t l){
+    offset = offset - 0x08000000;
+ 
+    prepare_print(l);
+
+    uint32_t error_count = 0;
+    for (uint32_t i=0; i<l;){
+        if (error_count >= 5){
+            printf("very big error \r\n");
+            return EINVAL;
+        }
+
+        boot_id_t id = {0};
+        id.com.address = offset+i;
+        id.com.command = boot_code_read;
+        char out_buf[64] = {0};
+        //T 000050b8 8 0800 6c5d 0800 6c5d
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, 0, 0);
+        uint32_t size = strlen(out_buf);    
+
+
+        if (send_command(out_buf, size)) {
+            printf("read not accept \r\n");
+            return EINVAL;
+        }
+
+        uint8_t answer[8]; 
+
+        boot_id_t id_rcv = {0};
+        if ((wait_answer(&id_rcv.raw, answer, 1000)) < 0){
+            error_count++;
+            continue;
+        }
+
+        uint32_t *l_byte, *h_byte;
+        l_byte = (uint32_t *)&data[i];
+        h_byte = l_byte + 1;
+
+        uint32_t *s_world_l, *s_world_h;
+
+        s_world_l = (uint32_t *)&data[i];
+        s_world_h = (uint32_t *)&data[i+4];
+
+        if ((*s_world_l != *l_byte) && (*s_world_h != *h_byte)){
+            printf("verify error, offset %x, cpu = %x, file = %x\r\n", offset + i, *s_world_l, *l_byte);
+            return EINVAL;
+        }
+
+        error_count = 0;
+      
+        i+=8;
+        point_print(i);
+    }
+
     return 0;
 }
+
 int can_api::start(){
     return 0;
 }

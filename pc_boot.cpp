@@ -49,7 +49,7 @@ int write_final_bin (char *path, uint8_t *flash_buf, uint32_t len) {
 
 int main (int argc, char *argv[]) {
     int r;
-    int debug = 0;
+    int debug = 1;
     if (argc != 5) {
         cout << "Wrong number of parameters. 4 parameters are required: " << endl;
         cout << "1. protocol can, uart, spi" << endl;
@@ -60,7 +60,7 @@ int main (int argc, char *argv[]) {
         return EINVAL;
     }
 
-    uint32_t page_size = 128, flash_size = 16384;
+    uint32_t page_size = 0, flash_size = 0;
 
     uint32_t offset;
     r = sscanf(argv[4], "%x", &offset);
@@ -127,6 +127,7 @@ int main (int argc, char *argv[]) {
         printf("no detect device\r\n");        
         return EINVAL;
     }
+    api->get_flash(&flash_size, &page_size);
 
     if (api->lock(1)){
         return EINVAL;
@@ -136,7 +137,7 @@ int main (int argc, char *argv[]) {
 
     uint32_t page_count = (flash_size - (offset - 0x08000000)) / page_size;
     if (debug) printf("page erase count = %d \r\n", page_count);
-
+    printf("start erase \r\n"); 
     if (api->erase(offset, page_count, page_size)){
         printf("erase failed \r\n");
         return EINVAL;
@@ -146,6 +147,7 @@ int main (int argc, char *argv[]) {
     printf("\r\n"); 
     printf("erase succeced \r\n"); 
 
+    printf("start write %d bytes\r\n", file_size);  
     if (api->write(offset, in_flash, file_size)){
         printf("write error \r\n");
     }
@@ -157,6 +159,7 @@ int main (int argc, char *argv[]) {
     }
     if (debug) printf("lock succeced \r\n");     
 
+    printf("start verification \r\n");    
     if (api->verify(offset, in_flash, file_size)){
         printf("verify error \r\n");
     }
