@@ -126,27 +126,13 @@ serial::Serial s;
 int main (int argc, char *argv[]) {
     int r;
 
-    if (argc != 4) {
+    if (argc != 2) {
         cout << "Wrong number of parameters. 4 parameters are required: " << endl;
         cout << "1. name tty" << endl;
-        cout << "2. Path to bin file (<<.bin>> file)." << endl;
-        cout << "3. offset." << endl;
         cout << endl;
         return EINVAL;
     }
 
-    uint32_t page_size = 1024, flash_size = 16384;
-
-    uint32_t offset;
-    r = sscanf(argv[3], "%x", &offset);
-
-    if (r==0){
-        return EINVAL;
-    }
-
-    if (offset < (0x08000000 + 4096)){
-        return EINVAL;
-    }
 
     s.setPort(argv[1]);
     s.setBaudrate(115200);
@@ -169,164 +155,81 @@ int main (int argc, char *argv[]) {
 
     printf("can bus open \r\n");
 
-    // detect
     while (1){
-        boot_id_t id = {0};
-        id.com.address = 0;
-        id.com.command = boot_code_name;
+        uint8_t buf_in_serial_data[256];
+        uint32_t count_byte_packet = s.read(buf_in_serial_data, 256);
 
-        char out_buf[64] = {0};
-        uint32_t dummy = 0;
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
-        uint32_t size = strlen(out_buf);      
-
-        if (send_command(out_buf, size)) {
-            printf("command detect not accept \r\n");
-            return EINVAL;
-        }
-        uint8_t answer[8];
-        boot_id_t id_rcv = {0};        
-        if ((r = wait_answer(&id_rcv.raw, answer, 100)) < 0){
+        if (count_byte_packet == 0){
             continue;
         }
-        if ((id_rcv.raw != id.raw) || (r != 3)){
+
+        if (*buf_in_serial_data == 'T'){
+            char char_id[9] = {0};
+            memcpy(char_id, &buf_in_serial_data[1], 8);
+            int id;
+            sscanf(char_id, "%x", &id);
+            uint8_t prio;  uint8_t src; uint8_t dst;
+            uint32_t pgn;
+
+            uint8_t CanIdPF = (uint8_t) (id >> 16);
+            uint8_t CanIdPS = (uint8_t) (id >> 8);
+            uint8_t CanIdDP = (uint8_t) (id >> 24) & 1;
+
+            src = (uint8_t) id >> 0;
+            prio = (uint8_t ) ((id >> 26) & 0x7);
+
+            if (CanIdPF < 240) {
+            /* PDU1 format, the PS contains the destination address */
+                dst = CanIdPS;
+                pgn = (((unsigned long)CanIdDP) << 16) | (((unsigned long)CanIdPF) << 8);
+            } else {
+            /* PDU2 format, the destination is implied global and the PGN is extended */
+                dst = 0xff;
+                pgn = (((unsigned long)CanIdDP) << 16) | (((unsigned long)CanIdPF) << 8) | (unsigned long)CanIdPS;
+            }
+
+            if (buf_in_serial_data[9] == '8'){
+                int dec1, dec2;
+                memcpy(char_id, &buf_in_serial_data[10], 8);
+                sscanf(char_id, "%x", &dec1);
+                memcpy(char_id, &buf_in_serial_data[18], 8);
+                sscanf(char_id, "%x", &dec2);
+
+                float volt =  (float)(dec2 >> 16) / 1000.f;
+                float curr =  (float)(dec1 & 0xffffff) / 1000.f;                
+                auto group  = 0xf & (dec2 >> 8);
+                printf("\rpgn = %d, group = %x, curr = %f, volt = %f",pgn,  group,curr, volt);   
+                fflush(stdout);
+            }
+
+
             continue;
         }
-        printf("device detected = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
-        break;
     }
+/*
+    if ((rv == 0) && (*buf_in_serial_data == 'T') && (count_byte_packet >= 10)){
+        char char_id[9] = {0};
+        memcpy(char_id, &buf_in_serial_data[1], 8);
+        sscanf(char_id, "%x", id);
 
-    // unlock
-    if (1){
-        boot_id_t id = {0};
-        id.com.address = 0;
-        id.com.command = boot_code_unlock;
+        uint8_t num = buf_in_serial_data[9];
+        if ((num < '1') || (num > '9')){
+            return -EINVAL;   
+        }
+        num = num - '0';
 
-        char out_buf[64] = {0};
-        uint32_t dummy = 0;
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
-        uint32_t size = strlen(out_buf);      
-
-        if (send_command(out_buf, size)) {
-            printf("command unlock not accept \r\n");
-            return EINVAL;
-        }
-        uint8_t answer[8];
-        boot_id_t id_rcv = {0};        
-        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
-            printf("command unlock timeout \r\n");
-            return EINVAL;
-        }
-        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
-            printf("unlock = %x, pld = %x \r\n", id.raw, answer[0]);
-            return EINVAL;
-        }
-        printf("unlock succeced \r\n"); 
+        uint8_t *buf_p = &buf_in_serial_data[10];
+        for (int i=num-1; i>=0; i--){
+            memcpy(char_id, buf_p, 2); 
+            buf_p += 2;
+            char_id[2] = 0;
+            uint32_t buf;
+            sscanf(char_id, "%x", &buf);
+            array[i] = buf & 0xff;
+        }  
+        return num;
     }
-
-   
-   // struct AES_ctx ctx;
-    //AES_init_ctx(&ctx, key);
-
-    uint32_t max_size = 1024*1024;
-    uint32_t file_size = 0;
-
-    uint8_t *in_flash = nullptr;
-    in_flash = new uint8_t[max_size];
-    memset(in_flash, 0xFF, max_size);
-
-    /// Копируем bootloader.bin.
-    r = read_bin_file(argv[2], in_flash, &file_size);
-    if (r){
-        cout << "File " << argv[2] << " does not exist!\n" << endl;
-        return EINVAL;
-    }
-    printf("filesize = %d\r\n", file_size);
-    offset = offset - 0x08000000;
-
-    uint32_t page_count = (flash_size - offset) / page_size;
-    printf("page erase count = %d \r\n", page_count);
-    uint32_t error_count = 0;
-
-    for (uint32_t i=0; i<page_count; ){
-        if (error_count >= 5){
-            printf("very big error \r\n");
-            return EINVAL;
-        }
-        boot_id_t id = {0};
-        id.com.address = offset+i*page_size;
-        id.com.command = boot_code_erase;
-
-        char out_buf[64] = {0};
-        //T 000050b8 8 0800 6c5d 0800 6c5d
-        uint32_t dummy = 0;
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
-        uint32_t size = strlen(out_buf);      
-
-        if (send_command(out_buf, size)) {
-            printf("command not accept \r\n");
-            return EINVAL;
-        }
-        uint8_t answer[8]; 
-
-        boot_id_t id_rcv = {0};
-        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
-            error_count++;
-            continue;
-        }
-        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
-            printf("erase = %x, pld = %x \r\n", id.raw, answer[0]);
-            error_count++;
-            continue;
-        }
-        printf(".");
-        fflush(stdout);
-        i+=1;
-    }
-    printf("\r\n"); 
-    printf("erase succeced \r\n"); 
-
-    error_count = 0;
-    for (uint32_t i=0; i<file_size; ){
-        if (error_count >= 5){
-            printf("very big error \r\n");
-            return EINVAL;
-        }
-        uint32_t *l_byte, *h_byte;
-        l_byte = (uint32_t *)&in_flash[i];
-        h_byte = l_byte + 1;
-
-        boot_id_t id = {0};
-        id.com.address = offset+i;
-        id.com.command = boot_code_write;
-
-        char out_buf[64] = {0};
-        //T 000050b8 8 0800 6c5d 0800 6c5d
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, *h_byte, *l_byte);
-        uint32_t size = strlen(out_buf);      
-
-        if (send_command(out_buf, size)) {
-            printf("command not accept \r\n");
-            return EINVAL;
-        }
-        uint8_t answer[8]; 
-
-        boot_id_t id_rcv = {0};
-        if ((r = wait_answer(&id_rcv.raw, answer, 1000)) < 0){
-            error_count++;
-            continue;
-        }
-        if ((id_rcv.raw != id.raw) || (answer[0] != 0)){
-            printf("rcv = %x, pld = %x \r\n", id.raw, answer[0]);
-            error_count++;
-            continue;
-        }
-        error_count = 0;
-      
-        i+=8;
-        printf(".");
-        fflush(stdout);  
-    }
+        */
     printf("\r\nboot succeced \r\n");     
     return 0;
 }
