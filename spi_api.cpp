@@ -250,7 +250,12 @@ int spi_api::bl_write(uint32_t addr, uint8_t *pData, uint16_t len){
     data_frame[0] = len - 1;
     memcpy(&data_frame[1], pData, len);
     data_frame[len+1] = checksum;
+<<<<<<< Updated upstream
     if ((rv = transfer(data_frame, buf, len+2)) != 0) return rv;
+=======
+    if ((rv = transfer(data_frame, buf, len+1)) != 0) return rv;
+
+>>>>>>> Stashed changes
     if (wait_for_ack()) return EFAULT;
 
     return 0;
