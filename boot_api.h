@@ -13,7 +13,13 @@ public:
     virtual int verify(uint32_t offset, uint8_t *data, uint32_t l) = 0;
     virtual int erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) = 0;
     virtual int lock(uint8_t lock = 0) = 0;
-    virtual int start() = 0;    
+    virtual int start() = 0;
+    int get_flash(uint32_t *flash, uint32_t *page, uint32_t *_offset){
+        *flash = flash_size; 
+        *page = application_sector; 
+        *_offset = wr_offset; 
+        return 0;
+    }
 protected:
 
 
@@ -44,6 +50,10 @@ protected:
     uint32_t point_coast;
     uint32_t point;
     uint32_t point_pos;
+
+    uint32_t flash_size;
+    uint32_t application_sector;
+    uint32_t wr_offset;
 };
 
 #endif

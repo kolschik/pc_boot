@@ -14,6 +14,7 @@ typedef enum {
         GO_COMMAND=0x21U,  // Go command
         WMEM_COMMAND=0x31U,  // Write Memory command
         EMEM_COMMAND=0x44U,  // Erase Memory command
+        GET_MAP_COMMAND=0x52U,
         WP_COMMAND=0x63U,  // Write Protect command
         WU_COMMAND=0x73U,  // Write Unprotect command
         RP_COMMAND=0x82U,  // Readout Protect command
@@ -38,6 +39,7 @@ private:
     int bl_get_command(uint8_t *pData);
     int bl_get_version(uint8_t *ver);
     int bl_get_id(uint16_t *id);
+    int bl_get_map();
     int bl_write(uint32_t addr, uint8_t *pData, uint16_t len);
     int bl_read(uint32_t addr, uint8_t *pData, uint16_t len);
     void clr_buf();

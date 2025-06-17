@@ -32,7 +32,11 @@ int spi_api::detect() {
             continue;
         }
 
-        printf("found mcu id %x \r\n", id);
+        if (bl_get_map()){
+            printf("Don't get memory map\r\n");
+            return EINVAL;   
+        }
+        printf("found mcu id %x, flash_size = 0x%x, offset = 0x%x \r\n", id, flash_size, wr_offset);
         break;
     }
     return 0;
@@ -47,7 +51,7 @@ int spi_api::erase(uint32_t start, uint32_t page_cnt, uint32_t page_size) {
     int rv;
     // Send start of frame (0x5A) + Erase Memory command frame (0x44 0xBB)
     if ((rv = send_command(EMEM_COMMAND)) != 0) return rv;
-
+    (void) page_size;
     // Send data frame: nb (2 Bytes), the number of pages or sectors to be erased + checksum (1 Byte)
     uint8_t data_frame[3];
     data_frame[0] = (uint8_t) (page_cnt >> 8) & 0xFFU;
@@ -192,7 +196,7 @@ int spi_api::bl_get_version(uint8_t *ver){
     int rv;
 
     // Send start of frame (0x5A) + Get Version command frame (0x01 0xEE)
-    if ((rv = send_command(::GET_VER_COMMAND)) != 0) return rv;
+    if ((rv = send_command(GET_VER_COMMAND)) != 0) return rv;
 
     // Receive data frame
     if ((rv = transfer(&dummy, buf, sizeof(dummy))) != 0) return rv;
@@ -204,11 +208,111 @@ int spi_api::bl_get_version(uint8_t *ver){
     return 0;
 }
 
+int spi_api::bl_get_map() {
+    int rv;
+    // Send start of frame (0x5A) + Get ID command frame (0x02 0xFD)
+    if ((rv = send_command(GET_MAP_COMMAND)) != 0) return rv;
+
+    char rx_buf[512];
+    if ((rv = receive_data((uint8_t*)rx_buf)) < 0) return -rv;
+
+    int len = strlen(rx_buf);  
+    int start=0; 
+    int pos=0;
+    for (; start<len; start++){
+        if (rx_buf[start] == '/'){
+            pos++;
+        }
+        if (pos == 2){
+            break;
+        }
+    }
+    if (pos != 2){   
+        return EINVAL;
+    }
+    start++;
+    typedef struct {
+        uint32_t num;
+        uint32_t size;
+        uint8_t writable;
+    }section_t;
+
+    section_t section[16];
+    int section_num = 0;
+    int end=start;
+
+    for (;section_num < (sizeof(section) / sizeof(section[0])); section_num++){
+        if (end >= len){
+            break;
+        }
+
+        for (;end++; end < len){
+            if (rx_buf[end] == ','){
+                char exp, m;
+
+
+                int arg = sscanf(&rx_buf[start], "%d*%d%c%c", &section[section_num].num, &section[section_num].size, &exp, &m);
+
+                switch (arg) {
+                case 4:
+                    if (exp == 'K') {
+                        section[section_num].size *= 1024;
+                    } else if (exp == 'M'){
+                        section[section_num].size *= 1024 * 1024;
+                    } else {
+                        return EINVAL;
+                    }
+                    exp = m;
+                case 3:
+                    if (exp == 'a') {
+                        section[section_num].writable = 0;
+                    } else if (exp == 'g'){
+                        section[section_num].writable = 1;      
+                    } else {
+                        printf("section %d attribute %dnot recognized \r\n", section_num, m);                        
+                        return EINVAL;
+                    }
+
+                    break;
+
+                default:
+                    section[section_num].size = 0;
+                    section[section_num].num = 0;     
+                    section[section_num].writable = 0;                                             
+                    break;
+                }
+                break;                
+            }
+        }
+        start = end+1;
+    }
+
+    int section_found = section_num;
+    uint32_t sector_count = 0;
+    uint32_t sector_appl = 0;
+    flash_size = 0;
+    section_num = 0;
+    wr_offset = 0;
+    application_sector = 0;
+
+   for (;section_num < section_found; section_num++){
+
+        if ((section[section_num].writable == 1) && (wr_offset == 0)){
+            application_sector = sector_count;
+            wr_offset = flash_size;
+        }
+        flash_size += section[section_num].num * section[section_num].size;
+        sector_count += section[section_num].num;
+    }
+
+    application_sector = sector_count - application_sector;
+    return 0;
+}
 
 int spi_api::bl_get_id(uint16_t *id) {
     int rv;
     // Send start of frame (0x5A) + Get ID command frame (0x02 0xFD)
-    if ((rv = send_command(::GET_ID_COMMAND)) != 0) return rv;
+    if ((rv = send_command(GET_ID_COMMAND)) != 0) return rv;
 
     uint8_t rx_buf[512];
     if ((rv = receive_data(rx_buf)) < 0) return -rv;
@@ -250,12 +354,7 @@ int spi_api::bl_write(uint32_t addr, uint8_t *pData, uint16_t len){
     data_frame[0] = len - 1;
     memcpy(&data_frame[1], pData, len);
     data_frame[len+1] = checksum;
-<<<<<<< Updated upstream
     if ((rv = transfer(data_frame, buf, len+2)) != 0) return rv;
-=======
-    if ((rv = transfer(data_frame, buf, len+1)) != 0) return rv;
-
->>>>>>> Stashed changes
     if (wait_for_ack()) return EFAULT;
 
     return 0;

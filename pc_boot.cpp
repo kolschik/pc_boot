@@ -49,26 +49,10 @@ int write_final_bin (char *path, uint8_t *flash_buf, uint32_t len) {
 int main (int argc, char *argv[]) {
     int r;
     int debug = 0;
-    if (argc != 5) {
-        cout << "Wrong number of parameters. 4 parameters are required: " << endl;
-        cout << "1. protocol can, uart, spi" << endl;
-        cout << "2. name serial" << endl;
-        cout << "3. Path to bin file (<<.bin>> file)." << endl;
-        cout << "4. offset." << endl;
+    if (argc != 3) {
+        cout << "Wrong number of parameters. 1 parameters are required: " << endl;
+        cout << "1. Path to bin file (<<.bin>> file)." << endl;
         cout << endl;
-        return EINVAL;
-    }
-
-    uint32_t page_size = 128, flash_size = 16384;
-
-    uint32_t offset;
-    r = sscanf(argv[4], "%x", &offset);
-
-    if (r==0){
-        return EINVAL;
-    }
-
-    if (offset < (0x08000000 + 3 * 1024)){
         return EINVAL;
     }
 
@@ -119,6 +103,7 @@ int main (int argc, char *argv[]) {
 */
     if (api->open()) {
         printf("no open pipe\r\n");
+        delete(api);
         return EINVAL;
     }
     if (debug) printf("bus open \r\n");
@@ -126,20 +111,25 @@ int main (int argc, char *argv[]) {
 
     if (api->detect()){
         printf("no detect device\r\n");
+        delete(api);        
         return EINVAL;
     }
 
     if (api->lock(1)){
+        delete(api);        
         return EINVAL;
     }
     if (debug) printf("unlock succeced \r\n");
 
+    uint32_t flash_size;
+    uint32_t page_size;
+    uint32_t offset;
 
-    uint32_t page_count = (flash_size - (offset - 0x08000000)) / page_size;
-    if (debug) printf("page erase count = %d \r\n", page_count);
+    api->get_flash(&flash_size, &page_size, &offset);
 
-    if (api->erase(6, 5, 0)){
+    if (api->erase(flash_size, page_size, 0)){
         printf("erase failed \r\n");
+        delete(api);        
         return EINVAL;
     }
 
@@ -154,6 +144,7 @@ int main (int argc, char *argv[]) {
     printf("\r\nwrite succeced \r\n");
 
     if (api->lock(0)){
+        delete(api);        
         return EINVAL;
     }
     if (debug) printf("lock succeced \r\n");
@@ -164,6 +155,7 @@ int main (int argc, char *argv[]) {
     printf("\r\nverify completed \r\n");
 
     api->start();
+    delete(api);    
     return 0;
 }
 
