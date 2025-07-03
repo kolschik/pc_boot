@@ -45,7 +45,7 @@ int can_api::detect() {
         }
         flash_size = answer[6] * 1024;
         sector_size = answer[4] | ((uint16_t) answer[5] << 8);
-        printf("device detected = %c%c%c, flash size = %d kbytes, sector_size = %d b\r\n", answer[0], 
+        printf("device detected = %c%c%c, flash size = %d bytes, sector_size = %d b\r\n", answer[0], 
             answer[1], answer[2], flash_size, sector_size); 
         printf(" = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
         break;
@@ -109,13 +109,13 @@ int can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
         sscanf(char_id, "%x", id);
 
         uint8_t num = buf_in_serial_data[9];
-        if ((num < '1') || (num > '9')){
+        if ((num < '1') || (num > '8')){
             return -EINVAL;   
         }
         num = num - '0';
 
         uint8_t *buf_p = &buf_in_serial_data[10];
-        for (int i=num-1; i>=0; i--){
+        for (int i=0; i<num; i++){
             memcpy(char_id, buf_p, 2); 
             buf_p += 2;
             char_id[2] = 0;
@@ -225,7 +225,9 @@ int can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
 
         char out_buf[64] = {0};
         //T 000050b8 8 0800 6c5d 0800 6c5d
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, *h_byte, *l_byte);
+        snprintf(out_buf, sizeof(out_buf), "T%08x8%02x%02x%02x%02x%02x%02x%02x%02x\r", id.raw, 
+            *l_byte & 0xff, (*l_byte >> 8) & 0xff, (*l_byte >> 16) & 0xff, (*l_byte >> 24) & 0xff,
+            *h_byte & 0xff, (*h_byte >> 8) & 0xff, (*h_byte >> 16) & 0xff, (*h_byte >> 24) & 0xff);
         uint32_t size = strlen(out_buf);      
 
         if (send_command(out_buf, size)) {
