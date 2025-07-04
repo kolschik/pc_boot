@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(pc_boot C CXX)
+project(nmea C CXX)
 
 
 include_directories(
@@ -11,7 +11,7 @@ include_directories(
 #    tiny-aes-c
     )
 
-add_executable(pc_boot 
+add_executable(nmea 
 #    "tiny-aes-c/aes.c"
     "pc_boot.cpp"
     serial/src/serial.cc

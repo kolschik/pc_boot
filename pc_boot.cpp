@@ -196,7 +196,6 @@ int main (int argc, char *argv[]) {
         if (count_byte_packet == 0){
             continue;
         }
-        printf("pgn = 127488L, src = %d\n", count_byte_packet );  
         uint8_t payload[8];
         uint32_t id;
         if (unpack(payload, (char*)buf_in_serial_data, count_byte_packet, &id) <= 0) {
@@ -205,7 +204,7 @@ int main (int argc, char *argv[]) {
  
         tN2kMsg_t msg;
         CanIdToN2k(id, &msg);
-
+        memcpy(msg.Data, payload, 8);
         if (msg.PGN == 127488L){
             uint8_t EngineInstance=0;
             uint16_t rpm=0;
@@ -215,48 +214,28 @@ int main (int argc, char *argv[]) {
             printf("pgn = 127488L, src = %d, rpm = %f, trim = %f\n", msg.Source, (float)rpm, (float)trim);   
         }
 
-        if (*buf_in_serial_data == 'T'){
-            char char_id[9] = {0};
-            memcpy(char_id, &buf_in_serial_data[1], 8);
-            int id;
-            sscanf(char_id, "%x", &id);
-            uint8_t prio;  uint8_t src; uint8_t dst;
-            uint32_t pgn;
+        if (msg.PGN == 127505){
+            uint8_t Instance=0;
+            tN2kFluidType FluidType=N2kft_Unavailable;
+            uint16_t Level=0;
+            uint32_t cap=0;   
+            ParseN2kPGN127505(&msg, &Instance, &FluidType, &Level, &cap);
 
-            uint8_t CanIdPF = (uint8_t) (id >> 16);
-            uint8_t CanIdPS = (uint8_t) (id >> 8);
-            uint8_t CanIdDP = (uint8_t) (id >> 24) & 1;
-
-            src = (uint8_t) id >> 0;
-            prio = (uint8_t ) ((id >> 26) & 0x7);
-
-            if (CanIdPF < 240) {
-            /* PDU1 format, the PS contains the destination address */
-                dst = CanIdPS;
-                pgn = (((unsigned long)CanIdDP) << 16) | (((unsigned long)CanIdPF) << 8);
-            } else {
-            /* PDU2 format, the destination is implied global and the PGN is extended */
-                dst = 0xff;
-                pgn = (((unsigned long)CanIdDP) << 16) | (((unsigned long)CanIdPF) << 8) | (unsigned long)CanIdPS;
-            }
-
-            if (buf_in_serial_data[9] == '8'){
-                int dec1, dec2;
-                memcpy(char_id, &buf_in_serial_data[10], 8);
-                sscanf(char_id, "%x", &dec1);
-                memcpy(char_id, &buf_in_serial_data[18], 8);
-                sscanf(char_id, "%x", &dec2);
-
-                float volt =  (float)(dec2 >> 16) / 1000.f;
-                float curr =  (float)(dec1 & 0xffffff) / 1000.f;                
-                auto group  = 0xf & (dec2 >> 8);
-                printf("\rpgn = %d, group = %x, curr = %f, volt = %f",pgn,  group,curr, volt);   
-                fflush(stdout);
-            }
-
-
-            continue;
+            printf("pgn = 127505L, src = %d, Instance = %d, Level = %d, capacity =%d\n", msg.Source, Instance, Level, cap);   
         }
+
+        if (msg.PGN == 127508){
+            uint8_t Instance=0;
+            uint16_t BatVolt=0;
+            uint16_t BatCur=0;   
+            uint16_t BatTemp=0;  
+            uint8_t SID=0;
+            ParseN2kPGN127508(&msg, &Instance, &BatVolt, &BatCur, &BatTemp, &SID);
+ 
+
+            printf("pgn = 127508L, src = %d, BatVolt = %d, SID = %d\n", msg.Source, BatVolt, SID);   
+        }
+
     }
 /*
     if ((rv == 0) && (*buf_in_serial_data == 'T') && (count_byte_packet >= 10)){
