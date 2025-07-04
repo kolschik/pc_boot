@@ -6,7 +6,8 @@ project(pc_boot C CXX)
 include_directories(
     .
     serial/include/serial
-    serial/include    
+    serial/include  
+    nmea2k      
 #    tiny-aes-c
     )
 
@@ -15,4 +16,5 @@ add_executable(pc_boot
     "pc_boot.cpp"
     serial/src/serial.cc
     serial/src/impl/unix.cc
+    nmea2k/nmea2k.c
 )

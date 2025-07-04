@@ -9,11 +9,45 @@
 #include <unistd.h> // для Unix систем
 #include <chrono>
 #include "api.h"
+#include "nmea2k.h"
 
 using namespace std;
 
 int wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout);
 int send_command(const char *s, uint32_t size, uint32_t timeout = 100);
+
+int pack(char *out_buf, uint8_t *data, uint8_t len, uint32_t id){
+    //T 000050b8 8 0800 6c5d 0800 6c5d
+    snprintf(out_buf, 64, "T%08x8%02x%02x%02x%02x%02x%02x%02x%02x\r", id, 
+        *data++, *data++, *data++, *data++, *data++, *data++, *data++, *data++);
+    return 0;
+}
+
+int unpack(uint8_t *out_buf, char *in_buf, uint8_t in_size, uint32_t *id) {
+    if ((*in_buf == 'T') && (in_size >= 10)){
+        char char_id[9] = {0};
+        memcpy(char_id, &in_buf[1], 8);
+        sscanf(char_id, "%x", id);
+
+        uint8_t num = in_buf[9];
+        if ((num < '1') || (num > '8')){
+            return -EINVAL;   
+        }
+        num = num - '0';
+
+        uint8_t *buf_p = (uint8_t*)&in_buf[10];
+        for (int i=0; i<num; i++){
+            memcpy(char_id, buf_p, 2); 
+            buf_p += 2;
+            char_id[2] = 0;
+            uint32_t buf;
+            sscanf(char_id, "%x", &buf);
+            out_buf[i] = buf & 0xff;
+        }  
+        return num;
+    }
+    return -EINVAL;  
+}
 /*
 uint8_t *malloc_array_flash (name_mc name) {
     uint32_t mc_support_count = sizeof(mc_base_name)/sizeof(mc_base_name[0]);
@@ -161,6 +195,24 @@ int main (int argc, char *argv[]) {
 
         if (count_byte_packet == 0){
             continue;
+        }
+
+        uint8_t payload[8];
+        uint32_t id;
+        if (unpack(payload, (char*)buf_in_serial_data, count_byte_packet, &id) <= 0) {
+            continue;
+        }
+
+        tN2kMsg_t msg;
+        CanIdToN2k(id, &msg);
+
+        if (msg.PGN == 127488L){
+            uint8_t EngineInstance=0;
+            uint16_t rpm=0;
+            uint32_t boost=0; 
+            int8_t trim=0;           
+            ParseN2kPGN127488(&msg, &EngineInstance, &rpm, &boost, &trim);
+            printf("pgn = 127488L, src = %d, rpm = %f, trim = %f\n", msg.Source, (float)rpm, (float)trim);   
         }
 
         if (*buf_in_serial_data == 'T'){
