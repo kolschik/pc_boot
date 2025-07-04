@@ -127,7 +127,7 @@ int main (int argc, char *argv[]) {
     int r;
 
     if (argc != 2) {
-        cout << "Wrong number of parameters. 4 parameters are required: " << endl;
+        cout << "Wrong number of parameters. 1 parameters are required: " << endl;
         cout << "1. name tty" << endl;
         cout << endl;
         return EINVAL;

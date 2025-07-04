@@ -1,3 +1,6 @@
 [submodule "serial"]
 	path = serial
 	url = https://github.com/wjwwood/serial.git
+[submodule "nmea2k"]
+	path = nmea2k
+	url = https://github.com/kolschik/nmea2k.git
