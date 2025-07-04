@@ -196,13 +196,13 @@ int main (int argc, char *argv[]) {
         if (count_byte_packet == 0){
             continue;
         }
-
+        printf("pgn = 127488L, src = %d\n", count_byte_packet );  
         uint8_t payload[8];
         uint32_t id;
         if (unpack(payload, (char*)buf_in_serial_data, count_byte_packet, &id) <= 0) {
             continue;
         }
-
+ 
         tN2kMsg_t msg;
         CanIdToN2k(id, &msg);
 
