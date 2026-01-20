@@ -235,7 +235,70 @@ int main (int argc, char *argv[]) {
 
             printf("pgn = 127508L, src = %d, BatVolt = %d, SID = %d\n", msg.Source, BatVolt, SID);   
         }
-
+        if (msg.PGN == 127501){
+            tN2kOnOff sw[28];
+            uint8_t bank;
+            ParseN2kPGN127501(&msg, sw, &bank);
+            char sw1[8] = {0};
+            char sw2[8] = {0};
+            char sw3[8] = {0};
+            char sw4[8] = {0};
+            char *sw_str[4]={sw1, sw2, sw3, sw4};
+            for (uint32_t i = 0; i < 4; i++){
+                if (sw[i] == N2kOnOff_Off){
+                    strcpy(sw_str[i], "off");
+                }
+                if (sw[i] == N2kOnOff_On){
+                    strcpy(sw_str[i], "on");
+                }
+                if (sw[i] == N2kOnOff_Unavailable){
+                    strcpy(sw_str[i], "una");
+                }
+                if (sw[i] == N2kOnOff_Error){
+                    strcpy(sw_str[i], "err");
+                }                                                
+            }
+            printf("pgn = 127501L, src = %d, bank = %d, sw1 = %s, sw2 = %s, sw3 = %s, sw4 = %s\n", msg.Source, bank, sw1, sw2, sw3,sw4);   
+        }
+        if (msg.PGN == 127751){
+            uint8_t instance;
+            int16_t voltage;
+            int32_t current; 
+            uint8_t SID;
+            ParseN2kPGN127751(&msg, &instance, &voltage, &current, &SID);
+            float fvolt = voltage * 0.1f;
+            float fcurr = current * 0.01f;
+            printf("pgn = 127751L, src = %d, instance = %d, voltage = %f, current = %f\n", msg.Source, instance, fvolt, fcurr);                
+        
+        }
+       
+/*
+        if (msg.PGN == 127502){
+            tN2kOnOff sw[28];
+            uint8_t bank;
+            ParseN2kPGN127502(&msg, sw, &bank);
+            char sw1[8] = {0};
+            char sw2[8] = {0};
+            char sw3[8] = {0};
+            char sw4[8] = {0};
+            char *sw_str[4]={sw1, sw2, sw3, sw4};
+            for (uint32_t i = 0; i < 4; i++){
+                if (sw[i] == N2kOnOff_Off){
+                    strcpy(sw_str[i], "off");
+                }
+                if (sw[i] == N2kOnOff_On){
+                    strcpy(sw_str[i], "on");
+                }
+                if (sw[i] == N2kOnOff_Unavailable){
+                    strcpy(sw_str[i], "una");
+                }
+                if (sw[i] == N2kOnOff_Error){
+                    strcpy(sw_str[i], "err");
+                }                                                
+            }
+            printf("pgn = 127502L, src = %d, bank = %d, sw1 = %s, sw2 = %s, sw3 = %s, sw4 = %s\n", msg.Source, bank, sw1, sw2, sw3,sw4);   
+        }
+            */
     }
 /*
     if ((rv == 0) && (*buf_in_serial_data == 'T') && (count_byte_packet >= 10)){
