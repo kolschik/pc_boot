@@ -10,6 +10,7 @@
 
 #include "uart_api.h"
 #include "can_api.h"
+#include "new_can_api.h"
 #include "spi_api.h"
 
 using namespace std;
@@ -107,10 +108,12 @@ int main (int argc, char *argv[]) {
     boot_api * api = nullptr;
     if (strcmp(argv[1], "uart") == 0){
         api = new uart_api(ser);
-    } else if (strcmp(argv[1], "can") == 0) {
+    } else if (strcmp(argv[1], "old") == 0) {
         api = new can_api(ser);
     } else if (strcmp(argv[1], "spi") == 0) {
         api = new spi_api(ser);        
+    } else if (strcmp(argv[1], "can") == 0) {
+        api = new new_can_api(ser);
     } else {
         printf("not valid protocol %s\r\n", argv[1]);
         return EINVAL;
