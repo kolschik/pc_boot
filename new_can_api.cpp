@@ -58,60 +58,68 @@ int new_can_api::detect() {
         fflush(stdout);
 
 
-        if(send(static_cast<uint32_t>(cmd_list::GET_CMD_COMMAND), buf, 0)) {
-            continue;
+        send(static_cast<uint32_t>(cmd_list::BL_ACK), buf, 0, 0);
+      printf("x\r\n");
+
+        {
+            if(send(static_cast<uint32_t>(cmd_list::GET_CMD_COMMAND), buf, 0)) {
+      printf("z\r\n");
+                continue;
+            }
+            int rcv_len = read(static_cast<uint32_t>(cmd_list::GET_CMD_COMMAND), buf);
+            if (rcv_len < 0) {
+                printf("command get not accept \r\n");
+                return EINVAL;
+            }
         }
 
-/*
-        char out_buf[64] = {0};
-        uint32_t dummy = 0;
-        snprintf(out_buf, sizeof(out_buf), "T%08x8%08x%08x\r", id.raw, dummy, dummy);
-        uint32_t size = strlen(out_buf);      
+        {
+            if(send(static_cast<uint32_t>(cmd_list::MAP_COMMAND), buf, 0)) {
+                printf("command get map not accept \r\n");
+                return EINVAL;
+            }
 
-        if (send_command(out_buf, size)) {
-            printf("command detect not accept \r\n");
-            return EINVAL;
+            int rcv_len = read(static_cast<uint32_t>(cmd_list::MAP_COMMAND), buf, 8);
+            if (rcv_len < 0) {
+                printf("command map not accept \r\n");
+                return EINVAL;
+            }
+            sector_size = buf[6] << 8 | buf[7];
+            flash_size = buf[5] * sector_size;
+            uint32_t offset = buf[4] * sector_size + 0x08000000;
+
+            printf("\ndevice detected = %c%c%c%c, flash size = %d bytes, sector_size = %d b\r\n", buf[0], 
+                buf[1], buf[2], buf[3], flash_size, sector_size); 
+
         }
-        uint8_t answer[8];
-        boot_id_t id_rcv = {0};  
-        int rv;      
-        if ((rv = wait_answer(&id_rcv.raw, answer, 100)) < 0){
-            continue;
-        }
-        if ((id_rcv.raw != id.raw) || (rv != 8)){
-            continue;
-        }
-        flash_size = answer[6] * 1024;
-        sector_size = answer[4] | ((uint16_t) answer[5] << 8);
-        printf("device detected = %c%c%c, flash size = %d bytes, sector_size = %d b\r\n", answer[0], 
-            answer[1], answer[2], flash_size, sector_size); 
-        printf(" = %c%c%c\r\n", answer[0], answer[1], answer[2]); 
         break;
-        */
     }
     return 0;
 }
 
 
 int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
-
+    s->flushInput();
     uint32_t send_byte = s->write((uint8_t *)str, size);
 
     if (send_byte != size){
         return EFAULT;
     }
 
-    uint8_t buf_in_serial_data[2048] = {0};
+
 
     auto cur_time = std::chrono::system_clock::now();
     auto t_stop = cur_time + std::chrono::milliseconds(timeout);
     auto end_time = t_stop;
     int rv = ETIMEDOUT;
     while (cur_time < end_time){ 
-        cur_time = std::chrono::system_clock::now();            
-        uint32_t count_byte_packet = s->read(buf_in_serial_data, 2048);
-
-        if ((count_byte_packet == 1) && (buf_in_serial_data[0] == 0x0d)){
+        cur_time = std::chrono::system_clock::now();  
+        uint8_t  c;       
+        uint32_t count_byte_packet = s->read(&c, 1);
+        if (count_byte_packet != 1){
+            continue;
+        }
+        if (c == 0x0d){
             return 0;
         }
     }
@@ -122,48 +130,57 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
 int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
 
     uint8_t buf_in_serial_data[256] = {0};
-
+    int buf_idx = 0;
     auto cur_time = std::chrono::system_clock::now();
     auto t_stop = cur_time + std::chrono::milliseconds(timeout);
     auto end_time = t_stop;
     int rv = -ETIMEDOUT;
     uint32_t count_byte_packet = 0;
     while (cur_time < end_time){ 
-        cur_time = std::chrono::system_clock::now();            
-        count_byte_packet = s->read(buf_in_serial_data, sizeof(buf_in_serial_data));
+        cur_time = std::chrono::system_clock::now();   
+        uint8_t c;         
+        count_byte_packet = s->read(&c, 1);
 
-        if (count_byte_packet == 0){
+        if (count_byte_packet != 1){
             continue;
         }
+        if (buf_idx >= sizeof(buf_in_serial_data)) {
+            return -ENOMEM;
+        }
+        buf_in_serial_data[buf_idx] = c;
+        buf_idx++;
 
-        if (*buf_in_serial_data == 'T'){
-            rv = 0;
+        if ((c == 0xd) && (*buf_in_serial_data == 't') && (buf_idx >= 4)){
+            buf_in_serial_data[buf_idx] = 0;
+            //printf(">>> %s\r\n", buf_in_serial_data);
+            char char_id[9] = {0};
+            memcpy(char_id, &buf_in_serial_data[1], 3);
+            sscanf(char_id, "%x", id);
+
+            uint8_t num = buf_in_serial_data[4];
+            if ((num < '0') || (num > '8')){
+                return -EINVAL;   
+            }
+            num = num - '0';
+    
+            uint8_t *buf_p = &buf_in_serial_data[5];
+            for (int i=0; i<num; i++){
+                memcpy(char_id, buf_p, 2); 
+                buf_p += 2;
+                char_id[2] = 0;
+                uint32_t buf;
+                sscanf(char_id, "%x", &buf);
+                array[i] = buf & 0xff;
+            }  
+            return num;
+        }
+
+        if (c == 0xd){
+            buf_idx = 0;
             break;
         }
     }
 
-    if ((rv == 0) && (*buf_in_serial_data == 'T') && (count_byte_packet >= 10)){
-        char char_id[9] = {0};
-        memcpy(char_id, &buf_in_serial_data[1], 8);
-        sscanf(char_id, "%x", id);
-
-        uint8_t num = buf_in_serial_data[9];
-        if ((num < '1') || (num > '8')){
-            return -EINVAL;   
-        }
-        num = num - '0';
-
-        uint8_t *buf_p = &buf_in_serial_data[10];
-        for (int i=0; i<num; i++){
-            memcpy(char_id, buf_p, 2); 
-            buf_p += 2;
-            char_id[2] = 0;
-            uint32_t buf;
-            sscanf(char_id, "%x", &buf);
-            array[i] = buf & 0xff;
-        }  
-        return num;
-    }
 
     return rv;
 }
@@ -291,38 +308,70 @@ int new_can_api::start(){
 new_can_api::new_can_api(serial::Serial *s) : boot_api(s) {}
 
 
-int new_can_api::send(uint32_t id, void *p, int len){
+int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
+
     auto data = reinterpret_cast<uint8_t*>(p);
     while (len >= 0) {
         uint8_t chank_len = 8;
         if (len < chank_len) {
-            len = chank_len;
+            chank_len = len;
         }
+
+        auto chat2uint = [](char*s, uint8_t dig){
+            *s = (dig >> 4) + '0';
+            if (*s > '0') {
+                *s = *s - '0' - 10 + 'a';
+            }
+            s++;
+            *s = (dig & 0xf) + '0';
+            if (*s > '0') {
+                *s = *s - '0' - 10 + 'a';
+            }
+            return;
+        };
 
         uint8_t data_buf[8] = {0};
         memcpy(data_buf, data, chank_len);
- 
+
+        char payload_str[17] = {0};
+        char *str_p = payload_str;
+        for (int i=0; i<chank_len;i++){
+            
+            chat2uint(str_p, data_buf[i]);
+            str_p += 2;
+        }
+        *str_p = 0;
+
         char out_buf[64] = {0};
-        snprintf(out_buf, sizeof(out_buf), "T%08x%01d%02x%02x%02x%02x%02x%02x%02x%02x\r", id, chank_len,
-            data_buf[0], data_buf[1], data_buf[2], data_buf[3],
-            data_buf[4], data_buf[5], data_buf[6], data_buf[7]);
+        snprintf(out_buf, sizeof(out_buf), "t%03x%01d%s\r", id, chank_len, payload_str);
         uint32_t size = strlen(out_buf);      
 
         if (send_command(out_buf, size)) {
             printf("command id %02x not accept \r\n", id & 0xff);
             return EINVAL;
         }
+        if (nead_answer == 0){
+            return 0;
+        }
 
         uint8_t answer[8];
         uint32_t id_rcv = UINT32_MAX;
         int rv;      
+
         if ((rv = wait_answer(&id_rcv, answer, 100)) < 0){
-            continue;
-        }
-        if ((id_rcv != id) || (rv != 1) || (answer[0] != static_cast<uint32_t>(cmd_list::BL_ACK))){
-            continue;
+            printf ("failed recieve ack send id %x\r\n", id_rcv);
+            return -EFAULT;
         }
 
+
+        if ((id_rcv != id) || (rv != 1) || (answer[0] != static_cast<uint32_t>(cmd_list::BL_ACK))){
+            printf ("failed recieve ack send id %x\r\n", id_rcv);
+            return -EFAULT;
+        }
+
+        if (len == 0) {
+            break;
+        }
         len = len - chank_len;
         data += chank_len;
     }
@@ -331,43 +380,61 @@ int new_can_api::send(uint32_t id, void *p, int len){
 }
 
 
-int new_can_api::read(uint32_t id, void *p, int len){
+int new_can_api::read(uint32_t id, void *p,  int len){
     auto data = reinterpret_cast<uint8_t*>(p);
-    while (len >= 0) {
-        uint8_t chank_len = 8;
-        if (len < chank_len) {
-            len = chank_len;
+
+    uint8_t answer[8];
+
+    if (len == -1) {
+        uint32_t id_rcv = UINT32_MAX;
+        int rv;    
+        if ((rv = wait_answer(&id_rcv, answer, 500)) < 0){
+            return -ETIMEDOUT;
+        }
+        if ((id != id_rcv) || (rv != 1)) {
+            printf ("failed recieve message len \r\n");
+            return -ETIMEDOUT; 
+        }
+
+        len = answer[0];
+    }
+    int rv_len = 0;
+    while (len > 0) {
+        uint32_t id_rcv = UINT32_MAX;
+        int rcv_len;  
+        if ((rcv_len = wait_answer(&id_rcv, answer, 500)) < 0){
+            printf ("id_rcv zalupa\r\n");
+            return -ETIMEDOUT;
+        }
+  
+        if (id != id_rcv) {
+            printf ("id_rcv different id %d %d\r\n", id, id_rcv);
+            return -EFAULT; 
         }
 
         uint8_t data_buf[8] = {0};
-        memcpy(data_buf, data, chank_len);
- 
-        char out_buf[64] = {0};
-        snprintf(out_buf, sizeof(out_buf), "T%08x%01d%02x%02x%02x%02x%02x%02x%02x%02x\r", id, chank_len,
-            data_buf[0], data_buf[1], data_buf[2], data_buf[3],
-            data_buf[4], data_buf[5], data_buf[6], data_buf[7]);
-        uint32_t size = strlen(out_buf);      
-
-        if (send_command(out_buf, size)) {
-            printf("command id %02x not accept \r\n", id & 0xff);
-            return EINVAL;
-        }
-
-        uint8_t answer[8];
-        uint32_t id_rcv = UINT32_MAX;
-        int rv;      
-        if ((rv = wait_answer(&id_rcv, answer, 100)) < 0){
-            continue;
-        }
-        if ((id_rcv != id) || (rv != 1) || (answer[0] != static_cast<uint32_t>(cmd_list::BL_ACK))){
-            continue;
-        }
-
-        len = len - chank_len;
-        data += chank_len;
+        memcpy(&data[rv_len], answer, rcv_len);
+        rv_len += rcv_len;
+        len = len - rcv_len;
     }
 
-    return 0;
+    int no_wait_ack = 0;
+    if (no_wait_ack == 0) {
+        uint32_t id_rcv = UINT32_MAX;
+        int rv;    
+        if ((rv = wait_answer(&id_rcv, answer, 500)) < 0){
+            printf ("failed recieve ack read id %x\r\n", id_rcv);
+            return -EFAULT;
+        }
+        if ((id != id_rcv) || (rv != 1) || (answer[0] != (uint8_t)cmd_list::BL_ACK)) {
+            printf ("failed recieve ack read id %x\r\n", id_rcv);
+            return -EFAULT;
+        }
+
+        len = answer[0];
+    }
+
+    return rv_len;
 }
 /*
 
