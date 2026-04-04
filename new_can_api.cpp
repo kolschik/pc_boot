@@ -59,11 +59,10 @@ int new_can_api::detect() {
 
 
         send(static_cast<uint32_t>(cmd_list::BL_ACK), buf, 0, 0);
-      printf("x\r\n");
 
         {
             if(send(static_cast<uint32_t>(cmd_list::GET_CMD_COMMAND), buf, 0)) {
-      printf("z\r\n");
+
                 continue;
             }
             int rcv_len = read(static_cast<uint32_t>(cmd_list::GET_CMD_COMMAND), buf);
@@ -319,12 +318,12 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
 
         auto chat2uint = [](char*s, uint8_t dig){
             *s = (dig >> 4) + '0';
-            if (*s > '0') {
+            if (*s > '9') {
                 *s = *s - '0' - 10 + 'a';
             }
             s++;
             *s = (dig & 0xf) + '0';
-            if (*s > '0') {
+            if (*s > '9') {
                 *s = *s - '0' - 10 + 'a';
             }
             return;
@@ -341,7 +340,7 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
             str_p += 2;
         }
         *str_p = 0;
-
+            printf("command %s \r\n", payload_str);
         char out_buf[64] = {0};
         snprintf(out_buf, sizeof(out_buf), "t%03x%01d%s\r", id, chank_len, payload_str);
         uint32_t size = strlen(out_buf);      
