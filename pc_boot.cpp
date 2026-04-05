@@ -138,9 +138,9 @@ int main (int argc, char *argv[]) {
     if (debug) printf("page erase count = %d \r\n", page_count);
     printf("start erase \r\n"); 
     if (api->erase(offset, page_count, page_size)){
-        printf("erase failed \r\n");
-        return EINVAL;
-    }
+       printf("erase failed \r\n");
+       return EINVAL;
+     }
 
  
     printf("\r\n"); 
@@ -149,6 +149,7 @@ int main (int argc, char *argv[]) {
     printf("start write %d bytes\r\n", file_size);  
     if (api->write(offset, in_flash, file_size)){
         printf("write error \r\n");
+        return EINVAL;
     }
 
     printf("\r\nwrite succeced \r\n");

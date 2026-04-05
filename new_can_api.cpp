@@ -1,6 +1,5 @@
 #include "new_can_api.h"
 
-
 int new_can_api::open() {
     const char s_Open[3] = {"O\r"};
 
@@ -133,21 +132,22 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
 
 int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
 
-    uint8_t buf_in_serial_data[256] = {0};
+
     int buf_idx = 0;
     auto cur_time = std::chrono::system_clock::now();
     auto t_stop = cur_time + std::chrono::milliseconds(timeout);
     auto end_time = t_stop;
     int rv = -ETIMEDOUT;
-    uint32_t count_byte_packet = 0;
+    uint8_t buf_in_serial_data[256] = {0};
     while (cur_time < end_time){ 
         cur_time = std::chrono::system_clock::now();   
         uint8_t c;         
-        count_byte_packet = s->read(&c, 1);
+        uint32_t count_byte_packet = s->read(&c, 1);
 
         if (count_byte_packet != 1){
             continue;
         }
+
         if (buf_idx >= sizeof(buf_in_serial_data)) {
             return -ENOMEM;
         }
@@ -256,10 +256,10 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
 
         uint8_t chank_buf[256];
         memcpy(chank_buf, data, chank_size);
-    
+
         if (send(static_cast<uint32_t>(cmd_list::DATA_PAYLOAD), chank_buf, chank_size)) {
-            error_count++;
-            continue;
+            printf("write payload failed\r\n");
+            return EINVAL;
         }
         error_count = 0;
       
@@ -268,6 +268,7 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
             return EINVAL;
         }
         i+=chank_size;
+        offset += chank_size;
         point_print(i);
     }
     return 0;
@@ -373,7 +374,7 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
         uint32_t id_rcv = UINT32_MAX;
         int rv;      
 
-        if ((rv = wait_answer(&id_rcv, answer, 10000)) < 0){
+        if ((rv = wait_answer(&id_rcv, answer, 1000)) < 0){
             printf ("failed recieve ack send id %x, rv %d\r\n", id, rv);
             return -EFAULT;
         }
