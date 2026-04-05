@@ -1,4 +1,5 @@
 #include "new_can_api.h"
+#include <unistd.h>
 
 int new_can_api::open() {
     const char s_Open[3] = {"O\r"};
@@ -222,20 +223,15 @@ int new_can_api::erase(uint32_t offset, uint32_t page_cnt, uint32_t page_size) {
         printf(".");
         fflush(stdout);
     }
-
+    usleep(500000);
     return 0;
 }
 
 
 int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
-    uint32_t error_count = 0;
    
     prepare_print(l);    
     for (uint32_t i=0; i<l; ){
-        if (error_count >= 5){
-            printf("very big error \r\n");
-            return EINVAL;
-        }
 
         int chank_size = 256;
         if ((l-i) < chank_size) {
@@ -255,13 +251,12 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
         }
 
         uint8_t chank_buf[256];
-        memcpy(chank_buf, data, chank_size);
+        memcpy(chank_buf, &data[i], chank_size);
 
         if (send(static_cast<uint32_t>(cmd_list::DATA_PAYLOAD), chank_buf, chank_size)) {
-            printf("write payload failed\r\n");
+            printf("write payload failed, offset = 0x%x \r\n", offset);
             return EINVAL;
         }
-        error_count = 0;
       
         if (wait_ack(static_cast<uint32_t>(cmd_list::WMEM_COMMAND), 5000)){
             printf("write chank failed\r\n");
@@ -269,6 +264,7 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
         }
         i+=chank_size;
         offset += chank_size;
+
         point_print(i);
     }
     return 0;
@@ -277,41 +273,46 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
 int new_can_api::verify(uint32_t offset, uint8_t *data, uint32_t l) {
     prepare_print(l);
 
-    uint32_t error_count = 0;
     for (uint32_t i=0; i<l;){
-        if (error_count >= 5){
-            printf("very big error \r\n");
-            return EINVAL;
-        }
+
         int chank_size = 256;
         if ((l-i) < chank_size) {
             chank_size = l-i;
         }
         uint8_t data_buf[5];
-        data_buf[0] = chank_size;
-        data_buf[1] = (offset >> 24) & 0xff;
-        data_buf[2] = (offset >> 16) & 0xff;
-        data_buf[3] = (offset >> 8) & 0xff;
-        data_buf[4] = (offset >> 0) & 0xff;
+        data_buf[0] = (offset >> 24) & 0xff;
+        data_buf[1] = (offset >> 16) & 0xff;
+        data_buf[2] = (offset >> 8) & 0xff;
+        data_buf[3] = (offset >> 0) & 0xff;
+
+        data_buf[4] = chank_size-1;
 
         if (send(static_cast<uint32_t>(cmd_list::RMEM_COMMAND), data_buf, sizeof(data_buf))) {
             printf("read not accept \r\n");
             return EINVAL;
         }
 
-
-        uint8_t answer[256]; 
-        // TODO wait data
+        uint8_t chank_buf[256];
 
 
-        if (memcmp(answer, data, chank_size)){
-            printf("verify error, offset %x, cpu = %x, file = %x\r\n", offset + i, *answer, *data);
+        if (read(static_cast<uint32_t>(cmd_list::RMEM_COMMAND), chank_buf, chank_size) < 0) {
+            printf("read payload failed\r\n");
             return EINVAL;
         }
 
-        error_count = 0;
+
+        if (memcmp(chank_buf, &data[i], chank_size)){
+            for (int iter=0; iter<chank_size; i++){
+                if (chank_buf[i] |= data[i]){
+                    printf("verify error, offset 0x%x, cpu = %x, file = %x\r\n", offset+i, *chank_buf, data[i]);
+                }
+            }
+
+            return EINVAL;
+        }
       
         i+=chank_size;
+        offset += chank_size;
         point_print(i);
     }
 
@@ -374,8 +375,8 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
         uint32_t id_rcv = UINT32_MAX;
         int rv;      
 
-        if ((rv = wait_answer(&id_rcv, answer, 1000)) < 0){
-            printf ("failed recieve ack send id %x, rv %d\r\n", id, rv);
+        if ((rv = wait_answer(&id_rcv, answer, id == 0 ? 50 : 1000)) < 0){
+            printf ("failed recieve ack send id %x, rv %d, len %d\r\n", id, rv, len);
             return -EFAULT;
         }
 
@@ -400,13 +401,14 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
 
 int new_can_api::read(uint32_t id, void *p,  int len){
     auto data = reinterpret_cast<uint8_t*>(p);
-
+    int rv_len = 0;
     uint8_t answer[8];
 
     if (len == -1) {
         uint32_t id_rcv = UINT32_MAX;
         int rv;    
         if ((rv = wait_answer(&id_rcv, answer, 500)) < 0){
+            printf ("read timeout \r\n");
             return -ETIMEDOUT;
         }
         if ((id != id_rcv) || (rv != 1)) {
@@ -416,7 +418,7 @@ int new_can_api::read(uint32_t id, void *p,  int len){
 
         len = answer[0];
     }
-    int rv_len = 0;
+
     while (len > 0) {
         uint32_t id_rcv = UINT32_MAX;
         int rcv_len;  
