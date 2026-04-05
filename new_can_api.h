@@ -19,7 +19,7 @@ private:
     int wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout = 1000);  
     int send(uint32_t id, void *data, int len, bool nead_answer = 1);  
     int read(uint32_t id, void *p, int len=-1);
-
+    int wait_ack(uint32_t id, uint32_t timeout);
     enum class cmd_list : uint8_t{
         GET_CMD_COMMAND = 0x00U,   // Get CMD command
         GET_VER_COMMAND = 0x01U,  // Get Version command
@@ -29,7 +29,7 @@ private:
         BL_NAK = 0x1FU,
         GO_COMMAND=0x21U,  // Go command
         WMEM_COMMAND=0x31U,  // Write Memory command
-        EMEM_COMMAND=0x44U,  // Erase Memory command
+        EMEM_COMMAND=0x43U,  // Erase Memory command
         MAP_COMMAND=0x52U,  // Erase Memory command
         WP_COMMAND=0x63U,  // Write Protect command
         WU_COMMAND=0x73U,  // Write Unprotect command

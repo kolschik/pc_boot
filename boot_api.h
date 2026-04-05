@@ -13,7 +13,12 @@ public:
     virtual int lock(uint8_t lock = 0) = 0;
     virtual int start() = 0;
     
-    int get_flash(uint32_t *flash, uint32_t *page){*flash = flash_size; *page = sector_size;return 0;}
+    int get_flash(uint32_t *flash, uint32_t *page,  uint32_t *offset){
+        *flash = flash_size;
+         *page = sector_size;
+         *offset = offset_comp;
+         return 0;
+        }
 protected:
 
 
@@ -36,7 +41,7 @@ protected:
     }
 
 protected:
-    static constexpr uint32_t point_cnt = 20;
+    static constexpr uint32_t point_cnt = 32;
     char buf[point_cnt + 1];
     uint32_t error_count = 0;
     serial::Serial *s = nullptr;
@@ -45,5 +50,6 @@ protected:
     uint32_t point = 0;
     uint32_t point_pos = 0;
     uint32_t flash_size;
+    uint32_t offset_comp = UINT32_MAX;
     uint32_t sector_size;
 };

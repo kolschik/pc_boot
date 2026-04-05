@@ -84,11 +84,11 @@ int new_can_api::detect() {
                 return EINVAL;
             }
             sector_size = buf[6] << 8 | buf[7];
-            flash_size = buf[5] * sector_size;
-            uint32_t offset = buf[4] * sector_size + 0x08000000;
+            flash_size = (buf[5] + buf[4]) * sector_size;
+            offset_comp = buf[4] * sector_size + 0x08000000;
 
-            printf("\ndevice detected = %c%c%c%c, flash size = %d bytes, sector_size = %d b\r\n", buf[0], 
-                buf[1], buf[2], buf[3], flash_size, sector_size); 
+            printf("\ndevice detected = %c%c%c%c, flash size = %d bytes, sector_size = %d b offset = 0x%x \r\n", buf[0], 
+                buf[1], buf[2], buf[3], flash_size, sector_size, offset_comp); 
 
         }
         break;
@@ -98,7 +98,12 @@ int new_can_api::detect() {
 
 
 int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
-    s->flushInput();
+   // s->flushInput();
+   uint8_t cymb;
+   uint8_t read_cnt=s->read(&cymb,1);
+   if(read_cnt == 1){
+    printf("alarma %x\r\n", cymb);
+   }
     uint32_t send_byte = s->write((uint8_t *)str, size);
 
     if (send_byte != size){
@@ -151,7 +156,7 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
 
         if ((c == 0xd) && (*buf_in_serial_data == 't') && (buf_idx >= 4)){
             buf_in_serial_data[buf_idx] = 0;
-            //printf(">>> %s\r\n", buf_in_serial_data);
+
             char char_id[9] = {0};
             memcpy(char_id, &buf_in_serial_data[1], 3);
             sscanf(char_id, "%x", id);
@@ -176,7 +181,7 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
 
         if (c == 0xd){
             buf_idx = 0;
-            break;
+            continue;;
         }
     }
 
@@ -192,28 +197,37 @@ int new_can_api::lock(uint8_t lock){
 
 int new_can_api::erase(uint32_t offset, uint32_t page_cnt, uint32_t page_size) {
 
+    if (page_cnt == 0){
+        return EFAULT;
+    }
     uint8_t data_buf[6];
     data_buf[0] = (offset >> 24) & 0xff;
     data_buf[1] = (offset >> 16) & 0xff;
     data_buf[2] = (offset >> 8) & 0xff;
     data_buf[3] = (offset >> 0) & 0xff;
 
-    data_buf[4] = (page_cnt >> 8) & 0xff;
-    data_buf[5] = (page_cnt >> 0) & 0xff;
+    data_buf[4] = ((page_cnt - 1) >> 8) & 0xff;
+    data_buf[5] = ((page_cnt - 1) >> 0) & 0xff;
 
     if (send(static_cast<uint32_t>(cmd_list::EMEM_COMMAND), data_buf, sizeof(data_buf))) {
         printf("erase not accept \r\n");
         return EINVAL;
     }
 
-    // TODO wait Ack
+    for (uint32_t i=0; i<page_cnt; i++){
+        if (wait_ack(static_cast<uint32_t>(cmd_list::EMEM_COMMAND), 5000)){
+            printf("page erase fail \r\n");
+            return EINVAL;
+        }
+        printf(".");
+        fflush(stdout);
+    }
 
     return 0;
 }
 
 
 int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
-    offset = offset - 0x08000000;
     uint32_t error_count = 0;
    
     prepare_print(l);    
@@ -223,33 +237,36 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
             return EINVAL;
         }
 
-    
         int chank_size = 256;
         if ((l-i) < chank_size) {
             chank_size = l-i;
         }
         uint8_t data_buf[5];
-        data_buf[0] = chank_size;
-        data_buf[1] = (offset >> 24) & 0xff;
-        data_buf[2] = (offset >> 16) & 0xff;
-        data_buf[3] = (offset >> 8) & 0xff;
-        data_buf[4] = (offset >> 0) & 0xff;
-      
+        data_buf[0] = (offset >> 24) & 0xff;
+        data_buf[1] = (offset >> 16) & 0xff;
+        data_buf[2] = (offset >> 8) & 0xff;
+        data_buf[3] = (offset >> 0) & 0xff;
+
+        data_buf[4] = chank_size-1;
+
         if (send(static_cast<uint32_t>(cmd_list::WMEM_COMMAND)  , data_buf, sizeof(data_buf))) {
-            printf("read not accept \r\n");
+            printf("write not accept \r\n");
             return EINVAL;
         }
 
         uint8_t chank_buf[256];
         memcpy(chank_buf, data, chank_size);
     
-        if (send(static_cast<uint32_t>(cmd_list::DATA_PAYLOAD), data_buf, chank_size)) {
+        if (send(static_cast<uint32_t>(cmd_list::DATA_PAYLOAD), chank_buf, chank_size)) {
             error_count++;
             continue;
         }
         error_count = 0;
       
-        // TODO Wait ack
+        if (wait_ack(static_cast<uint32_t>(cmd_list::WMEM_COMMAND), 5000)){
+            printf("write chank failed\r\n");
+            return EINVAL;
+        }
         i+=chank_size;
         point_print(i);
     }
@@ -308,7 +325,6 @@ new_can_api::new_can_api(serial::Serial *s) : boot_api(s) {}
 
 
 int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
-
     auto data = reinterpret_cast<uint8_t*>(p);
     while (len >= 0) {
         uint8_t chank_len = 8;
@@ -340,7 +356,7 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
             str_p += 2;
         }
         *str_p = 0;
-            printf("command %s \r\n", payload_str);
+
         char out_buf[64] = {0};
         snprintf(out_buf, sizeof(out_buf), "t%03x%01d%s\r", id, chank_len, payload_str);
         uint32_t size = strlen(out_buf);      
@@ -357,22 +373,24 @@ int new_can_api::send(uint32_t id, void *p, int len, bool nead_answer){
         uint32_t id_rcv = UINT32_MAX;
         int rv;      
 
-        if ((rv = wait_answer(&id_rcv, answer, 100)) < 0){
-            printf ("failed recieve ack send id %x\r\n", id_rcv);
+        if ((rv = wait_answer(&id_rcv, answer, 10000)) < 0){
+            printf ("failed recieve ack send id %x, rv %d\r\n", id, rv);
             return -EFAULT;
         }
 
 
         if ((id_rcv != id) || (rv != 1) || (answer[0] != static_cast<uint32_t>(cmd_list::BL_ACK))){
-            printf ("failed recieve ack send id %x\r\n", id_rcv);
+            printf ("recieve noack id %x\r\n", id_rcv);
             return -EFAULT;
         }
+
+
+        len = len - chank_len;
+        data += chank_len;
 
         if (len == 0) {
             break;
         }
-        len = len - chank_len;
-        data += chank_len;
     }
 
     return 0;
@@ -417,23 +435,34 @@ int new_can_api::read(uint32_t id, void *p,  int len){
         len = len - rcv_len;
     }
 
+
     int no_wait_ack = 0;
     if (no_wait_ack == 0) {
-        uint32_t id_rcv = UINT32_MAX;
-        int rv;    
-        if ((rv = wait_answer(&id_rcv, answer, 500)) < 0){
-            printf ("failed recieve ack read id %x\r\n", id_rcv);
+        if (wait_ack(id, 500)){
             return -EFAULT;
         }
-        if ((id != id_rcv) || (rv != 1) || (answer[0] != (uint8_t)cmd_list::BL_ACK)) {
-            printf ("failed recieve ack read id %x\r\n", id_rcv);
-            return -EFAULT;
-        }
-
-        len = answer[0];
     }
 
     return rv_len;
+}
+
+int new_can_api::wait_ack(uint32_t id, uint32_t timeout){
+    uint32_t id_rcv = UINT32_MAX;
+    int rv;
+    uint8_t answer[8];
+    if ((rv = wait_answer(&id_rcv, answer, timeout)) < 0){
+        printf ("failed recieve ack read id %x\r\n", id_rcv);
+        return -EFAULT;
+    }
+    if ((id == id_rcv) && (rv == 1) && (answer[0] == (uint8_t)cmd_list::BL_NAK)){
+        printf ("recieve no_ack id %x\r\n", id_rcv);
+        return -EBADMSG;
+    }
+    if ((id != id_rcv) || (rv != 1)) {
+        printf ("failed recieve ack id %x\r\n", id_rcv);
+        return -EBADMSG;
+    }
+    return 0;
 }
 /*
 

@@ -70,10 +70,6 @@ int main (int argc, char *argv[]) {
         return EINVAL;
     }
 
-    if (offset < (0x08000000 + 3 * 1024)){
-        return EINVAL;
-    }
-
 
     uint32_t max_size = 1024*1024;
     uint32_t file_size = 0;
@@ -130,7 +126,7 @@ int main (int argc, char *argv[]) {
         printf("no detect device\r\n");        
         return EINVAL;
     }
-    api->get_flash(&flash_size, &page_size);
+    api->get_flash(&flash_size, &page_size, &offset);
 
     if (api->lock(1)){
         return EINVAL;
