@@ -99,23 +99,23 @@ int new_can_api::detect() {
 
 int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
    // s->flushInput();
-   uint8_t cymb;
-   uint8_t read_cnt=s->read(&cymb,1);
-   if(read_cnt == 1){
-    printf("alarma %x\r\n", cymb);
-   }
+    uint8_t cymb;
+    uint8_t read_cnt=s->read(&cymb,1);
+    if(read_cnt == 1){
+        printf("warning, buffer not empty %x\r\n", cymb);
+    }
     uint32_t send_byte = s->write((uint8_t *)str, size);
 
     if (send_byte != size){
+        printf("failed transmite\r\n");
         return EFAULT;
     }
-
 
 
     auto cur_time = std::chrono::system_clock::now();
     auto t_stop = cur_time + std::chrono::milliseconds(timeout);
     auto end_time = t_stop;
-    int rv = ETIMEDOUT;
+
     while (cur_time < end_time){ 
         cur_time = std::chrono::system_clock::now();  
         uint8_t  c;       
@@ -125,6 +125,9 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
         }
         if (c == 0x0d){
             return 0;
+        } else {
+            printf("failed, tx not acknolage\r\n");
+            return EFAULT;
         }
     }
 
@@ -132,8 +135,6 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
 }
 
 int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
-
-
     int buf_idx = 0;
     auto cur_time = std::chrono::system_clock::now();
     auto t_stop = cur_time + std::chrono::milliseconds(timeout);
@@ -150,6 +151,7 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
         }
 
         if (buf_idx >= sizeof(buf_in_serial_data)) {
+            printf("recieve buffer overflow\r\n");
             return -ENOMEM;
         }
         buf_in_serial_data[buf_idx] = c;
@@ -164,6 +166,7 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
 
             uint8_t num = buf_in_serial_data[4];
             if ((num < '0') || (num > '8')){
+                printf("can protocol error, num error\r\n");                
                 return -EINVAL;   
             }
             num = num - '0';
@@ -181,8 +184,9 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
         }
 
         if (c == 0xd){
+                printf("warning, left 0x0d\r\n");               
             buf_idx = 0;
-            continue;;
+            continue;
         }
     }
 
@@ -197,7 +201,6 @@ int new_can_api::lock(uint8_t lock){
 
 
 int new_can_api::erase(uint32_t offset, uint32_t page_cnt, uint32_t page_size) {
-
     if (page_cnt == 0){
         return EFAULT;
     }
@@ -223,7 +226,7 @@ int new_can_api::erase(uint32_t offset, uint32_t page_cnt, uint32_t page_size) {
         printf(".");
         fflush(stdout);
     }
-    usleep(500000);
+    usleep(100000);
     return 0;
 }
 
@@ -259,7 +262,7 @@ int new_can_api::write(uint32_t offset, uint8_t *data, uint32_t l){
         }
       
         if (wait_ack(static_cast<uint32_t>(cmd_list::WMEM_COMMAND), 5000)){
-            printf("write chank failed\r\n");
+            printf("write chank failed, i=%d\r\n", (i/chank_size));
             return EINVAL;
         }
         i+=chank_size;
