@@ -23,30 +23,33 @@ protected:
 
 
     void prepare_print(uint32_t l){   
-        point_coast = l / point_cnt;
+        point_total = l;
         point = 0;
         point_pos = 0;
-        memset(buf, '.', point_cnt);
+        snprintf(buf, sizeof(buf), "[  0%%] ");
+        memset(&buf[6], '.', point_cnt);
         buf[point_cnt] = 0;
         printf("%s", buf);
     }
 
-    void point_print(uint32_t i){
-        if (i > point){
-            buf[point_pos++] = '=';
-            printf("\r%s", buf);
-            fflush(stdout);            
-            point += point_coast;
-        }
+    void point_print(uint32_t writes){
+        memset(&buf[6], '.', point_cnt);
+        int point_fill = point_cnt  * writes / point_total;
+        int pct = 100  * writes / point_total;
+        snprintf(buf, sizeof(buf), "[%3d%%] ", pct);
+        memset(&buf[6], '=', point_fill);
+  
+        printf("\r%s", buf);
+        fflush(stdout);            
     }
 
 protected:
-    static constexpr uint32_t point_cnt = 32;
-    char buf[point_cnt + 1];
+    static constexpr uint32_t point_cnt = 20;
+    char buf[point_cnt + 7];
     uint32_t error_count = 0;
     serial::Serial *s = nullptr;
 
-    uint32_t point_coast = 0;
+    uint32_t point_total = 0;
     uint32_t point = 0;
     uint32_t point_pos = 0;
     uint32_t flash_size;
