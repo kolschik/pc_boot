@@ -146,6 +146,10 @@ int main (int argc, char *argv[]) {
     printf("\r\n"); 
     printf("erase succeced \r\n"); 
 
+    if (file_size & 0x3) {
+        file_size += 4 - (file_size & 0x3);
+    }
+    
     printf("start write %d bytes\r\n", file_size);  
     if (api->write(offset, in_flash, file_size)){
         printf("write error \r\n");

@@ -38,4 +38,5 @@ private:
         RP_COMMAND=0x82U,  // Readout Protect command
         RU_COMMAND=0x92U // Readout Unprotect command
     };
+    uint32_t BOOT_ID = 0x01;
 };
