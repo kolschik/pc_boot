@@ -100,13 +100,17 @@ int new_can_api::detect() {
 
 int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
    // s->flushInput();
-    uint8_t cymb;
-    uint8_t read_cnt=s->read(&cymb,1);
-    if(read_cnt == 1){
-        printf("warning, buffer not empty %x\r\n", cymb);
-    }
-    uint32_t send_byte = s->write((uint8_t *)str, size);
+    uint8_t cymb = 0x0d;
 
+    while (1) {
+        uint8_t read_cnt=s->read(&cymb, 1);
+        if(read_cnt == 0){
+            break;
+        }
+        printf("warning, buffer not empty 0x%x\r\n", cymb);
+    }
+
+    uint32_t send_byte = s->write((uint8_t *)str, size);
     if (send_byte != size){
         printf("failed transmite\r\n");
         return EFAULT;
@@ -124,12 +128,10 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
         if (count_byte_packet != 1){
             continue;
         }
-        if (c == 0x0d){
+        if ((c == 0x0d) && (cymb = 0x0d)){
             return 0;
-        } else {
-            printf("failed, tx not acknolage\r\n");
-            return EFAULT;
         }
+        cymb = c;
     }
 
     return ETIMEDOUT;
