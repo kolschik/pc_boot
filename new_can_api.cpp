@@ -107,7 +107,6 @@ int new_can_api::send_command(const char *str, uint32_t size, uint32_t timeout){
         if(read_cnt == 0){
             break;
         }
-        printf("warning, buffer not empty 0x%x\r\n", cymb);
     }
 
     uint32_t send_byte = s->write((uint8_t *)str, size);
@@ -204,7 +203,6 @@ int new_can_api::wait_answer(uint32_t *id, uint8_t *array, uint32_t timeout){
         }
 
         if (c == 0xd){
-                printf("warning, left 0x0d\r\n");               
             buf_idx = 0;
             continue;
         }
